@@ -1,9 +1,8 @@
 import { describe, expect, test as it } from "vitest";
 import { createTest } from "../testing/convex";
+import { connectAgent } from "../testing/mcp";
 import { api } from "./_generated/api";
 import { mcp } from "./mcp";
-
-type TestClient = ReturnType<typeof createTest>;
 
 describe("MCP server", () => {
   it("has no risky tool setups", () => {
@@ -163,29 +162,3 @@ describe("MCP server", () => {
     expect((await owner.request("list_folders")).status).toBe(401);
   });
 });
-
-async function connectAgent(t: TestClient, subject: string, scopes?: string[]) {
-  const { apiKey } = await t
-    .withIdentity({ subject })
-    .action(api.mcp.createApiKey, { name: "test", scopes });
-  const request = (name: string, args: Record<string, unknown> = {}) =>
-    t.fetch("/mcp", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        "content-type": "application/json",
-        "mcp-protocol-version": "2025-06-18",
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "tools/call",
-        params: { name, arguments: args },
-      }),
-    });
-  const call = async (name: string, args: Record<string, unknown> = {}) => {
-    const body = await (await request(name, args)).json();
-    return body.result;
-  };
-  return { request, call };
-}

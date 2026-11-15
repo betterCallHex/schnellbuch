@@ -35,7 +35,10 @@ export function savedAtOf(bookmark: Doc<"bookmarks">) {
 }
 
 export function newestFirst(first: Doc<"bookmarks">, second: Doc<"bookmarks">) {
-  return savedAtOf(second) - savedAtOf(first);
+  return (
+    savedAtOf(second) - savedAtOf(first) ||
+    second._creationTime - first._creationTime
+  );
 }
 
 export async function addBookmark(

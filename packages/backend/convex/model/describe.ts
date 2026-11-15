@@ -38,6 +38,13 @@ export function describeLibrary(
   );
   return {
     folders: folderSummaries,
+    // A folder's ID and every folder inside it.
+    subtree: (folderId: Id<"folders">) => {
+      const node = flatTree.find((folder) => folder._id === folderId);
+      return new Set(
+        node ? flattenFolderTree([node]).map((folder) => folder._id) : []
+      );
+    },
     folder: (folderId: Id<"folders">) =>
       folderSummaries.find((folder) => folder.id === folderId),
     bookmark: (bookmark: Doc<"bookmarks">): Infer<typeof bookmarkResult> => ({

@@ -6,6 +6,7 @@ import {
   BookmarkPlusIcon,
   CopyIcon,
   DownloadIcon,
+  HistoryIcon,
   KeyRoundIcon,
   UploadIcon,
 } from "lucide-react";
@@ -40,6 +41,7 @@ function Settings() {
       </Toolbar>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 md:p-6">
         <AgentAccess />
+        <AgentChanges />
         <Bookmarklet />
         <ImportExport />
       </div>
@@ -142,6 +144,59 @@ function AgentAccess() {
             ))}
           </ul>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AgentChanges() {
+  const changes = useQuery(api.changes.list, { limit: 10 });
+  const undo = useMutation(api.changes.undo);
+  if (!changes || changes.length === 0) {
+    return null;
+  }
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <HistoryIcon aria-hidden className="size-4" />
+          Recent agent changes
+        </CardTitle>
+        <CardDescription>
+          Bulk changes your agents made. Undo puts everything back in one step.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="flex flex-col divide-y rounded-lg border">
+          {changes.map((change) => (
+            <li className="flex items-center gap-3 p-3 text-sm" key={change.id}>
+              <span className="min-w-0 flex-1">
+                <span className={change.undone ? "line-through" : undefined}>
+                  {change.summary}
+                </span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {new Date(change.madeAt).toLocaleString()}
+                </span>
+              </span>
+              {change.undone ? (
+                <span className="text-muted-foreground">Undone</span>
+              ) : (
+                <Button
+                  onClick={async () => {
+                    if (await succeeded(undo({ changeId: change.id }))) {
+                      toast.success(`Undid: ${change.summary}`);
+                    }
+                  }}
+                  size="sm"
+                  variant="outline"
+                >
+                  Undo
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
       </CardContent>
     </Card>
   );
