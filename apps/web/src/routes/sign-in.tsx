@@ -27,6 +27,13 @@ export const Route = createFileRoute("/sign-in")({
 
 type Mode = "sign-in" | "sign-up";
 
+function signInError(error: { code?: string; message?: string }) {
+  if (error.code === "SIGNUPS_CLOSED") {
+    return "Sign-ups are closed.";
+  }
+  return error.message ?? "Something went wrong. Try again.";
+}
+
 function SignIn() {
   const { redirect: redirectTo } = Route.useSearch();
   const [mode, setMode] = useState<Mode>("sign-in");
@@ -50,7 +57,7 @@ function SignIn() {
           });
     if (result.error) {
       setPending(false);
-      setError(result.error.message ?? "Something went wrong. Try again.");
+      setError(signInError(result.error));
       return;
     }
     window.location.assign(safeRedirectPath(redirectTo));

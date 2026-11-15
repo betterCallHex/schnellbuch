@@ -10,7 +10,7 @@ description: Start SchnellBuch locally and check a change end to end in a browse
 1. `bun install` in a fresh worktree.
 2. `bun run dev` (run it in the background). It starts `convex dev` (pushes `packages/backend/convex` to your dev deployment) and Vite on `http://localhost:3000`. Use `PORT=3001 bun run dev` when another checkout holds 3000.
 3. First run on a new machine: `convex dev` asks you to log in and pick a project, then writes `packages/backend/.env.local`. Set the backend secrets once:
-   `cd packages/backend && bunx convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)" && bunx convex env set SITE_URL http://localhost:3000 && bunx convex env set MCP_CONSENT_URL http://localhost:3000/connect`.
+   `cd packages/backend && bunx convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)" && bunx convex env set SITE_URL http://localhost:3000 && bunx convex env set MCP_CONSENT_URL http://localhost:3000/connect && bunx convex env set SIGNUP_ALLOWED_EMAILS @schnellbuch.test`. Sign-ups outside that list show "Sign-ups are closed".
 4. Wait for `Convex functions ready!` and for `curl -s -o /dev/null -w '%{http_code}' localhost:3000/sign-in` to return 200.
 
 ## Log in

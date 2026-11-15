@@ -28,9 +28,14 @@ cd packages/backend
 bunx convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
 bunx convex env set SITE_URL http://localhost:3000
 bunx convex env set MCP_CONSENT_URL http://localhost:3000/connect
+bunx convex env set SIGNUP_ALLOWED_EMAILS you@example.com
 ```
 
 Open http://localhost:3000 and create an account.
+
+### Who can sign up
+
+Only addresses in `SIGNUP_ALLOWED_EMAILS` can create an account. It's a comma-separated list of addresses (`me@example.com`) or whole domains (`@family.example`), compared case-insensitively. Anyone else sees "Sign-ups are closed". An empty or missing list closes sign-ups entirely, and accounts that already exist keep signing in whatever the list says.
 
 ## Connect an agent
 

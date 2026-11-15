@@ -23,6 +23,7 @@ import type * as model_describe from "../model/describe.js";
 import type * as model_folders from "../model/folders.js";
 import type * as model_page from "../model/page.js";
 import type * as model_search from "../model/search.js";
+import type * as model_signup from "../model/signup.js";
 import type * as model_tree from "../model/tree.js";
 import type * as model_url from "../model/url.js";
 
@@ -48,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   "model/folders": typeof model_folders;
   "model/page": typeof model_page;
   "model/search": typeof model_search;
+  "model/signup": typeof model_signup;
   "model/tree": typeof model_tree;
   "model/url": typeof model_url;
 }>;
