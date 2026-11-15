@@ -128,7 +128,7 @@ function BookmarkForm({
   }
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit}>
+    <form className="flex flex-col gap-4" method="post" onSubmit={submit}>
       <DialogHeader>
         <DialogTitle>{bookmark ? "Edit bookmark" : "Add bookmark"}</DialogTitle>
         <DialogDescription>
@@ -197,7 +197,7 @@ function FolderNameForm({
   }
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit}>
+    <form className="flex flex-col gap-4" method="post" onSubmit={submit}>
       <DialogHeader>
         <DialogTitle>{folder ? "Rename folder" : "New folder"}</DialogTitle>
       </DialogHeader>

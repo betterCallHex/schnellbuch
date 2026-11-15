@@ -68,7 +68,7 @@ function SignIn() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="flex flex-col gap-4" onSubmit={submit}>
+          <form className="flex flex-col gap-4" method="post" onSubmit={submit}>
             <div className="flex flex-col gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
