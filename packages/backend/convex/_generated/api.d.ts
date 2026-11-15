@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as agent from "../agent.js";
 import type * as auth from "../auth.js";
 import type * as bookmarks from "../bookmarks.js";
 import type * as env from "../env.js";
@@ -17,13 +18,12 @@ import type * as http from "../http.js";
 import type * as mcp from "../mcp.js";
 import type * as metadata from "../metadata.js";
 import type * as model_bookmarks from "../model/bookmarks.js";
+import type * as model_describe from "../model/describe.js";
 import type * as model_folders from "../model/folders.js";
 import type * as model_page from "../model/page.js";
 import type * as model_search from "../model/search.js";
-import type * as model_tokens from "../model/tokens.js";
 import type * as model_tree from "../model/tree.js";
 import type * as model_url from "../model/url.js";
-import type * as tokens from "../tokens.js";
 
 import type {
   ApiFromModules,
@@ -32,6 +32,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agent: typeof agent;
   auth: typeof auth;
   bookmarks: typeof bookmarks;
   env: typeof env;
@@ -41,13 +42,12 @@ declare const fullApi: ApiFromModules<{
   mcp: typeof mcp;
   metadata: typeof metadata;
   "model/bookmarks": typeof model_bookmarks;
+  "model/describe": typeof model_describe;
   "model/folders": typeof model_folders;
   "model/page": typeof model_page;
   "model/search": typeof model_search;
-  "model/tokens": typeof model_tokens;
   "model/tree": typeof model_tree;
   "model/url": typeof model_url;
-  tokens: typeof tokens;
 }>;
 
 /**
@@ -78,4 +78,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
+  mcp: import("@convex-dev/mcp/_generated/component.js").ComponentApi<"mcp">;
 };

@@ -18,15 +18,9 @@ import { Label } from "@/components/ui/label";
 import { env } from "@/env";
 import { bookmarkletHref } from "@/lib/bookmarklet";
 import { errorMessage, succeeded } from "@/lib/errors";
-import {
-  claudeCodeCommand,
-  mcpEndpoint,
-  mcpJsonConfig,
-} from "@/lib/mcp-config";
+import { claudeCodeCommand, mcpEndpoint } from "@/lib/mcp-config";
 
 export const Route = createFileRoute("/_app/settings")({ component: Settings });
-
-const TOKEN_PLACEHOLDER = "<your token>";
 
 function Settings() {
   return (
@@ -43,20 +37,20 @@ function Settings() {
 }
 
 function AgentAccess() {
-  const tokens = useQuery(api.tokens.list, {});
-  const createToken = useAction(api.tokens.create);
-  const revokeToken = useMutation(api.tokens.revoke);
-  const [newToken, setNewToken] = useState<string | null>(null);
+  const connections = useQuery(api.mcp.listConnections, {});
+  const createApiKey = useAction(api.mcp.createApiKey);
+  const revokeConnection = useMutation(api.mcp.revokeConnection);
+  const [newKey, setNewKey] = useState<string | null>(null);
   const endpoint = mcpEndpoint(env.VITE_CONVEX_SITE_URL);
-  const shownToken = newToken ?? TOKEN_PLACEHOLDER;
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     try {
-      setNewToken(
-        await createToken({ name: String(new FormData(form).get("name")) })
-      );
+      const { apiKey } = await createApiKey({
+        name: String(new FormData(form).get("name")),
+      });
+      setNewKey(apiKey);
       form.reset();
     } catch (error) {
       toast.error(errorMessage(error));
@@ -71,58 +65,72 @@ function AgentAccess() {
           Agent access (MCP)
         </CardTitle>
         <CardDescription>
-          Give Claude, Cursor or any MCP client a token, and it can read, add,
-          move and delete your bookmarks.
+          Paste this URL into Claude, ChatGPT, Cursor or any MCP client. You'll
+          be asked to approve it here, and it can then read, add, move and
+          delete your bookmarks.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <form className="flex items-end gap-2" onSubmit={create}>
+        <Snippet label="MCP server URL" text={endpoint} />
+        <form className="flex items-end gap-2" method="post" onSubmit={create}>
           <div className="flex flex-1 flex-col gap-2">
-            <Label htmlFor="token-name">New token name</Label>
+            <Label htmlFor="key-name">API key for a CLI agent</Label>
             <Input
-              id="token-name"
+              id="key-name"
               name="name"
               placeholder="Claude Code on my laptop"
               required
             />
           </div>
-          <Button type="submit">Create token</Button>
+          <Button type="submit">Create API key</Button>
         </form>
-        {newToken ? (
-          <p className="bg-primary/10 rounded-lg p-3 text-sm" role="status">
-            Copy your token now. It won't be shown again.
-          </p>
+        {newKey ? (
+          <>
+            <p className="bg-primary/10 rounded-lg p-3 text-sm" role="status">
+              Copy this key now. It won't be shown again.
+            </p>
+            <Snippet
+              label="Claude Code"
+              text={claudeCodeCommand(endpoint, newKey)}
+            />
+          </>
         ) : null}
-        <Snippet
-          label="Claude Code"
-          text={claudeCodeCommand(endpoint, shownToken)}
-        />
-        <Snippet
-          label="Other MCP clients (JSON config)"
-          text={mcpJsonConfig(endpoint, shownToken)}
-        />
-        <ul className="flex flex-col divide-y rounded-lg border">
-          {tokens?.length === 0 && (
-            <li className="text-muted-foreground p-3 text-sm">
-              No tokens yet.
-            </li>
-          )}
-          {tokens?.map((token) => (
-            <li className="flex items-center gap-3 p-3 text-sm" key={token._id}>
-              <span className="min-w-0 flex-1 truncate">{token.name}</span>
-              <code className="text-muted-foreground text-xs">
-                {token.preview}
-              </code>
-              <Button
-                onClick={() => succeeded(revokeToken({ tokenId: token._id }))}
-                size="sm"
-                variant="destructive"
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Connected agents</span>
+          <ul className="flex flex-col divide-y rounded-lg border">
+            {connections?.length === 0 && (
+              <li className="text-muted-foreground p-3 text-sm">
+                No agents connected yet.
+              </li>
+            )}
+            {connections?.map((connection) => (
+              <li
+                className="flex items-center gap-3 p-3 text-sm"
+                key={connection.id}
               >
-                Revoke
-              </Button>
-            </li>
-          ))}
-        </ul>
+                <span className="min-w-0 flex-1 truncate">
+                  {connection.name}
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {connection.kind === "apiKey" ? "API key" : "Signed in"} ·{" "}
+                    {connection.scopes.length > 0
+                      ? connection.scopes.join(", ")
+                      : "all tools"}
+                  </span>
+                </span>
+                <Button
+                  onClick={() =>
+                    succeeded(revokeConnection({ id: connection.id }))
+                  }
+                  size="sm"
+                  variant="destructive"
+                >
+                  Disconnect
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </CardContent>
     </Card>
   );

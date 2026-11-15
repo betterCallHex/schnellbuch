@@ -1,3 +1,4 @@
+import mcpComponent from "@convex-dev/mcp/test";
 import { convexTest } from "convex-test";
 import schema from "../convex/schema";
 
@@ -7,5 +8,7 @@ const modules = import.meta.glob([
 ]);
 
 export function createTest() {
-  return convexTest(schema, modules);
+  const t = convexTest(schema, modules);
+  mcpComponent.register(t);
+  return t;
 }

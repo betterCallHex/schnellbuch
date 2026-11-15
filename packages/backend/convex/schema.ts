@@ -15,13 +15,4 @@ export default defineSchema({
     folderId: v.optional(v.id("folders")),
     faviconUrl: v.optional(v.string()),
   }).index("by_user_folder", ["userId", "folderId"]),
-
-  apiTokens: defineTable({
-    userId: v.string(),
-    name: v.string(),
-    tokenHash: v.string(),
-    preview: v.string(),
-  })
-    .index("by_hash", ["tokenHash"])
-    .index("by_user", ["userId"]),
 });

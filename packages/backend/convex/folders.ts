@@ -1,9 +1,4 @@
-import {
-  agentMutation,
-  agentQuery,
-  userMutation,
-  userQuery,
-} from "./functions";
+import { userMutation, userQuery } from "./functions";
 import {
   createFolder,
   createFolderArgs,
@@ -24,20 +19,6 @@ export const update = userMutation({
   handler: updateFolder,
 });
 export const remove = userMutation({
-  args: deleteFolderArgs,
-  handler: deleteFolder,
-});
-
-export const listForAgent = agentQuery({ args: {}, handler: listFolders });
-export const createForAgent = agentMutation({
-  args: createFolderArgs,
-  handler: createFolder,
-});
-export const updateForAgent = agentMutation({
-  args: updateFolderArgs,
-  handler: updateFolder,
-});
-export const removeForAgent = agentMutation({
   args: deleteFolderArgs,
   handler: deleteFolder,
 });

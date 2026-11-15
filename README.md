@@ -27,13 +27,20 @@ The first run of `convex dev` asks you to log in to Convex and create a project.
 cd packages/backend
 bunx convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
 bunx convex env set SITE_URL http://localhost:3000
+bunx convex env set MCP_CONSENT_URL http://localhost:3000/connect
 ```
 
 Open http://localhost:3000 and create an account.
 
 ## Connect an agent
 
-Settings → Agent access → create a token. The page shows a ready-made `claude mcp add …` command and a JSON config for other clients. The endpoint is `<your Convex site URL>/mcp` (streamable HTTP, bearer token).
+Settings → Agent access shows your MCP server URL (`<your Convex site URL>/mcp`).
+
+- **Claude, ChatGPT, Cursor:** paste the URL as a connector or MCP server. You're sent to SchnellBuch to approve it, with a choice between read-only and read/write access.
+- **Claude Code and other CLIs:** create an API key in Settings and run the `claude mcp add …` command it shows.
+- **Any agent that can make HTTP requests:** give it the URL. It reads the instructions there and shows you a sign-in link with a code to confirm.
+
+Disconnect any agent in Settings. Built on [`@convex-dev/mcp`](https://www.convex.dev/components/mcp).
 
 Tools: `list_folders`, `list_bookmarks`, `search_bookmarks`, `add_bookmark`, `update_bookmark`, `delete_bookmark`, `create_folder`, `update_folder`, `delete_folder`.
 
@@ -49,7 +56,7 @@ Tools: `list_folders`, `list_bookmarks`, `search_bookmarks`, `add_bookmark`, `up
 
 ## Choices that differ from the usual defaults
 
-- **Agent tokens** live in our own `apiTokens` table (SHA-256 hashes) instead of Better Auth's API key plugin, because that plugin needs the Better Auth component's "local install" on Convex.
+- **Agent sign-in** uses `@convex-dev/mcp` (alpha) instead of Better Auth's API key plugin, which would need the Better Auth component's "local install" on Convex.
 - **No Convex backups, Axiom or PostHog**: not needed for a personal app. Export (planned) will double as a backup.
 - **Biome `noJsxPropsBind` is off**: React Compiler already memoizes inline handlers.
 

@@ -5,6 +5,7 @@ export const env = createEnv({
   server: {
     SITE_URL: z.url(),
     BETTER_AUTH_SECRET: z.string().min(32),
+    MCP_CONSENT_URL: z.url(),
   },
   runtimeEnv: process.env,
   isServer: true,

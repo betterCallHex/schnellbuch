@@ -15,10 +15,9 @@
     "typecheck": "tsc --noEmit -p convex && tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
-    "@cfworker/json-schema": "4.1.6",
     "@convex-dev/better-auth": "0.13.0",
+    "@convex-dev/mcp": "0.1.0-alpha.7",
     "@leeoniya/ufuzzy": "1.0.19",
-    "@modelcontextprotocol/sdk": "1.32.2",
     "@t3-oss/env-core": "0.13.11",
     "better-auth": "1.7.25",
     "convex": "1.50.0",

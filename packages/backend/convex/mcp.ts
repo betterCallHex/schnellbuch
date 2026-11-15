@@ -1,307 +1,168 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/cfworker-provider.js";
-import { ConvexError } from "convex/values";
-import * as z from "zod";
-import { internal } from "./_generated/api";
-import type { Doc, Id } from "./_generated/dataModel";
-import { type ActionCtx, httpAction } from "./_generated/server";
-import { searchBookmarks } from "./model/search";
-import { hashToken } from "./model/tokens";
-import { buildFolderTree, flattenFolderTree } from "./model/tree";
+import { McpServer, tool } from "@convex-dev/mcp";
+import { v } from "convex/values";
+import { components, internal } from "./_generated/api";
+import { env } from "./env";
+import { bookmarkResult, folderResult } from "./model/describe";
 
-const BEARER = /^Bearer\s+(?<token>\S+)$/iu;
-const DEFAULT_LIMIT = 50;
-const MAX_LIMIT = 500;
+const READ = "bookmarks:read";
+const WRITE = "bookmarks:write";
+const LOCAL = { openWorldHint: false };
+const limit = v.optional(v.number());
 
-const INSTRUCTIONS =
-  "SchnellBuch holds the user's bookmarks in nested folders. Call list_folders to learn folder IDs and paths before filing bookmarks. A bookmark outside every folder sits at the top level. Deleting a folder moves its bookmarks and subfolders up to its parent.";
-
-export const handleMcp = httpAction(async (ctx, request) => {
-  const userId = await authenticate(ctx, request);
-  if (!userId) {
-    return new Response("Missing or invalid SchnellBuch token.", {
-      status: 401,
-      headers: { "WWW-Authenticate": 'Bearer realm="SchnellBuch"' },
-    });
-  }
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-    enableJsonResponse: true,
-  });
-  await createBookmarkServer(ctx, userId).connect(transport);
-  return transport.handleRequest(request);
+export const mcp: McpServer = new McpServer(components.mcp, {
+  name: "schnellbuch",
+  title: "SchnellBuch",
+  version: "0.2.0",
+  instructions:
+    "SchnellBuch holds the user's bookmarks in nested folders. Call list_folders for folder IDs and paths before filing or moving anything, and search_bookmarks to find a bookmark by words. A bookmark outside every folder sits at the top level. Deleting a folder moves its bookmarks and subfolders up to its parent.",
+  consentUrl: env.MCP_CONSENT_URL,
+  scopes: {
+    [READ]: "See your bookmarks and folders",
+    [WRITE]: "Add, edit, move and delete your bookmarks and folders",
+  },
+  tools: {
+    list_folders: tool({
+      description:
+        "Every folder with its ID, full path (like 'Dev / Convex'), parent and bookmark count.",
+      returns: v.object({ folders: v.array(folderResult) }),
+      annotations: { readOnlyHint: true, ...LOCAL },
+      scope: READ,
+      handler: async (ctx, _args, user) => ({
+        folders: await ctx.runQuery(internal.agent.listFolders, {
+          userId: user.userId,
+        }),
+      }),
+    }),
+    list_bookmarks: tool({
+      description:
+        "Bookmarks newest first. Omit folderId for all bookmarks, pass null for top-level ones, or a folder ID for that folder only. Returns at most `limit` (default 50, max 500).",
+      args: { folderId: v.optional(v.union(v.string(), v.null())), limit },
+      returns: v.object({ bookmarks: v.array(bookmarkResult) }),
+      annotations: { readOnlyHint: true, ...LOCAL },
+      scope: READ,
+      handler: async (ctx, args, user) => ({
+        bookmarks: await ctx.runQuery(internal.agent.listBookmarks, {
+          userId: user.userId,
+          ...args,
+        }),
+      }),
+    }),
+    search_bookmarks: tool({
+      description:
+        "Fuzzy search over bookmark titles and URLs, best match first. Abbreviations work ('cnvx hub' finds 'Convex Developer Hub'). Returns at most `limit` (default 50).",
+      args: { query: v.string(), limit },
+      returns: v.object({ bookmarks: v.array(bookmarkResult) }),
+      annotations: { readOnlyHint: true, ...LOCAL },
+      scope: READ,
+      handler: async (ctx, args, user) => ({
+        bookmarks: await ctx.runQuery(internal.agent.searchBookmarks, {
+          userId: user.userId,
+          ...args,
+        }),
+      }),
+    }),
+    add_bookmark: tool({
+      description:
+        "Save a link and return the saved bookmark. Without a title, the page's own title is fetched a few seconds later. Without folderId, it goes to the top level.",
+      args: {
+        url: v.string(),
+        title: v.optional(v.string()),
+        folderId: v.optional(v.string()),
+      },
+      returns: bookmarkResult,
+      annotations: LOCAL,
+      scope: WRITE,
+      handler: (ctx, args, user) =>
+        ctx.runMutation(internal.agent.addBookmark, {
+          userId: user.userId,
+          ...args,
+        }),
+    }),
+    update_bookmark: tool({
+      description:
+        "Change a bookmark's title or URL, or move it to another folder (folderId null moves it to the top level). Returns the updated bookmark.",
+      args: {
+        bookmarkId: v.string(),
+        title: v.optional(v.string()),
+        url: v.optional(v.string()),
+        folderId: v.optional(v.union(v.string(), v.null())),
+      },
+      returns: bookmarkResult,
+      annotations: { idempotentHint: true, ...LOCAL },
+      scope: WRITE,
+      handler: (ctx, args, user) =>
+        ctx.runMutation(internal.agent.updateBookmark, {
+          userId: user.userId,
+          ...args,
+        }),
+    }),
+    delete_bookmark: tool({
+      description: "Delete a bookmark for good.",
+      args: { bookmarkId: v.string() },
+      returns: v.object({ deletedBookmarkId: v.string() }),
+      annotations: { destructiveHint: true, ...LOCAL },
+      scope: WRITE,
+      handler: (ctx, args, user) =>
+        ctx.runMutation(internal.agent.deleteBookmark, {
+          userId: user.userId,
+          ...args,
+        }),
+    }),
+    create_folder: tool({
+      description:
+        "Create a folder at the top level, or inside parentId. Returns the new folder.",
+      args: { name: v.string(), parentId: v.optional(v.string()) },
+      returns: folderResult,
+      annotations: LOCAL,
+      scope: WRITE,
+      handler: (ctx, args, user) =>
+        ctx.runMutation(internal.agent.createFolder, {
+          userId: user.userId,
+          ...args,
+        }),
+    }),
+    update_folder: tool({
+      description:
+        "Rename a folder or move it (parentId null moves it to the top level). A folder can't move inside itself. Returns the updated folder.",
+      args: {
+        folderId: v.string(),
+        name: v.optional(v.string()),
+        parentId: v.optional(v.union(v.string(), v.null())),
+      },
+      returns: folderResult,
+      annotations: { idempotentHint: true, ...LOCAL },
+      scope: WRITE,
+      handler: (ctx, args, user) =>
+        ctx.runMutation(internal.agent.updateFolder, {
+          userId: user.userId,
+          ...args,
+        }),
+    }),
+    delete_folder: tool({
+      description:
+        "Delete a folder. Its bookmarks and subfolders move up to its parent; nothing else is deleted.",
+      args: { folderId: v.string() },
+      returns: v.object({ deletedFolderId: v.string() }),
+      annotations: { destructiveHint: true, ...LOCAL },
+      scope: WRITE,
+      handler: (ctx, args, user) =>
+        ctx.runMutation(internal.agent.deleteFolder, {
+          userId: user.userId,
+          ...args,
+        }),
+    }),
+  },
 });
 
-async function authenticate(ctx: ActionCtx, request: Request) {
-  const token = request.headers.get("authorization")?.match(BEARER)
-    ?.groups?.token;
-  if (!token) {
-    return null;
-  }
-  return ctx.runQuery(internal.tokens.userIdForTokenHash, {
-    tokenHash: await hashToken(token),
-  });
-}
+export const {
+  getAuthRequest,
+  findAuthRequest,
+  authorize,
+  listConnections,
+  revokeConnection,
+  createApiKey,
+} = mcp.api({
+  getUserId: async (ctx) => (await ctx.auth.getUserIdentity())?.subject ?? null,
+});
 
-function createBookmarkServer(ctx: ActionCtx, userId: string) {
-  const server = new McpServer(
-    { name: "schnellbuch", version: "0.1.0" },
-    {
-      instructions: INSTRUCTIONS,
-      jsonSchemaValidator: new CfWorkerJsonSchemaValidator(),
-    }
-  );
-  const library = () => readLibrary(ctx, userId);
-  const limit = z
-    .number()
-    .int()
-    .min(1)
-    .max(MAX_LIMIT)
-    .optional()
-    .describe(`Defaults to ${DEFAULT_LIMIT}.`);
-
-  server.registerTool(
-    "list_folders",
-    {
-      title: "List folders",
-      description:
-        "Every folder with its ID, full path, parent and bookmark count.",
-      inputSchema: {},
-      annotations: { readOnlyHint: true },
-    },
-    () => respond(async () => (await library()).folderSummaries())
-  );
-
-  server.registerTool(
-    "list_bookmarks",
-    {
-      title: "List bookmarks",
-      description:
-        "Bookmarks newest first. Omit folderId for all bookmarks, pass null for top-level ones.",
-      inputSchema: { folderId: z.string().nullable().optional(), limit },
-      annotations: { readOnlyHint: true },
-    },
-    ({ folderId, limit: count }) =>
-      respond(async () => {
-        const { bookmarks, describe } = await library();
-        const inFolder =
-          folderId === undefined
-            ? bookmarks
-            : bookmarks.filter(
-                (bookmark) => (bookmark.folderId ?? null) === folderId
-              );
-        return inFolder.slice(0, count ?? DEFAULT_LIMIT).map(describe);
-      })
-  );
-
-  server.registerTool(
-    "search_bookmarks",
-    {
-      title: "Search bookmarks",
-      description:
-        "Fuzzy search over bookmark titles and URLs, best match first.",
-      inputSchema: { query: z.string().min(1), limit },
-      annotations: { readOnlyHint: true },
-    },
-    ({ query, limit: count }) =>
-      respond(async () => {
-        const { bookmarks, describe } = await library();
-        return searchBookmarks(bookmarks, query, count ?? DEFAULT_LIMIT).map(
-          describe
-        );
-      })
-  );
-
-  server.registerTool(
-    "add_bookmark",
-    {
-      title: "Add bookmark",
-      description:
-        "Save a link. Without a title, the page title is fetched. Without folderId, it lands at the top level.",
-      inputSchema: {
-        url: z.string().min(1),
-        title: z.string().optional(),
-        folderId: z.string().optional(),
-      },
-    },
-    ({ url, title, folderId }) =>
-      respond(async () => {
-        const bookmarkId = await ctx.runMutation(
-          internal.bookmarks.addForAgent,
-          {
-            userId,
-            url,
-            title,
-            folderId: folderId as Id<"folders"> | undefined,
-          }
-        );
-        return { bookmarkId };
-      })
-  );
-
-  server.registerTool(
-    "update_bookmark",
-    {
-      title: "Update bookmark",
-      description:
-        "Change a bookmark's title or URL, or move it. folderId null moves it to the top level.",
-      inputSchema: {
-        bookmarkId: z.string(),
-        title: z.string().optional(),
-        url: z.string().optional(),
-        folderId: z.string().nullable().optional(),
-      },
-      annotations: { idempotentHint: true },
-    },
-    ({ bookmarkId, title, url, folderId }) =>
-      respond(() =>
-        ctx.runMutation(internal.bookmarks.updateForAgent, {
-          userId,
-          bookmarkId: bookmarkId as Id<"bookmarks">,
-          title,
-          url,
-          folderId: folderId as Id<"folders"> | null | undefined,
-        })
-      )
-  );
-
-  server.registerTool(
-    "delete_bookmark",
-    {
-      title: "Delete bookmark",
-      description: "Delete a bookmark for good.",
-      inputSchema: { bookmarkId: z.string() },
-      annotations: { destructiveHint: true },
-    },
-    ({ bookmarkId }) =>
-      respond(() =>
-        ctx.runMutation(internal.bookmarks.removeForAgent, {
-          userId,
-          bookmarkId: bookmarkId as Id<"bookmarks">,
-        })
-      )
-  );
-
-  server.registerTool(
-    "create_folder",
-    {
-      title: "Create folder",
-      description: "Create a folder, at the top level or inside parentId.",
-      inputSchema: { name: z.string().min(1), parentId: z.string().optional() },
-    },
-    ({ name, parentId }) =>
-      respond(async () => {
-        const folderId = await ctx.runMutation(
-          internal.folders.createForAgent,
-          {
-            userId,
-            name,
-            parentId: parentId as Id<"folders"> | undefined,
-          }
-        );
-        return { folderId };
-      })
-  );
-
-  server.registerTool(
-    "update_folder",
-    {
-      title: "Update folder",
-      description:
-        "Rename a folder or move it. parentId null moves it to the top level.",
-      inputSchema: {
-        folderId: z.string(),
-        name: z.string().optional(),
-        parentId: z.string().nullable().optional(),
-      },
-      annotations: { idempotentHint: true },
-    },
-    ({ folderId, name, parentId }) =>
-      respond(() =>
-        ctx.runMutation(internal.folders.updateForAgent, {
-          userId,
-          folderId: folderId as Id<"folders">,
-          name,
-          parentId: parentId as Id<"folders"> | null | undefined,
-        })
-      )
-  );
-
-  server.registerTool(
-    "delete_folder",
-    {
-      title: "Delete folder",
-      description:
-        "Delete a folder. Its bookmarks and subfolders move up to its parent.",
-      inputSchema: { folderId: z.string() },
-      annotations: { destructiveHint: true },
-    },
-    ({ folderId }) =>
-      respond(() =>
-        ctx.runMutation(internal.folders.removeForAgent, {
-          userId,
-          folderId: folderId as Id<"folders">,
-        })
-      )
-  );
-
-  return server;
-}
-
-async function readLibrary(ctx: ActionCtx, userId: string) {
-  const [folders, bookmarks] = await Promise.all([
-    ctx.runQuery(internal.folders.listForAgent, { userId }),
-    ctx.runQuery(internal.bookmarks.listForAgent, { userId }),
-  ]);
-  const flatTree = flattenFolderTree(buildFolderTree(folders));
-  const pathById = new Map(flatTree.map((folder) => [folder._id, folder.path]));
-  const countByFolder = Map.groupBy(bookmarks, (bookmark) => bookmark.folderId);
-  return {
-    bookmarks,
-    describe: (bookmark: Doc<"bookmarks">) => ({
-      id: bookmark._id,
-      title: bookmark.title,
-      url: bookmark.url,
-      folderId: bookmark.folderId ?? null,
-      folderPath: bookmark.folderId
-        ? (pathById.get(bookmark.folderId) ?? null)
-        : null,
-      savedAt: new Date(bookmark._creationTime).toISOString(),
-    }),
-    folderSummaries: () =>
-      flatTree.map((folder) => ({
-        id: folder._id,
-        name: folder.name,
-        path: folder.path,
-        parentId: folder.parentId ?? null,
-        bookmarkCount: countByFolder.get(folder._id)?.length ?? 0,
-      })),
-  };
-}
-
-async function respond(run: () => Promise<unknown>) {
-  try {
-    const result = await run();
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify(result ?? { ok: true }, null, 2),
-        },
-      ],
-    };
-  } catch (error) {
-    return {
-      isError: true,
-      content: [{ type: "text" as const, text: errorMessage(error) }],
-    };
-  }
-}
-
-function errorMessage(error: unknown) {
-  if (error instanceof ConvexError && typeof error.data === "string") {
-    return error.data;
-  }
-  return error instanceof Error ? error.message : String(error);
-}
+export const { createApiKeyForUser } = mcp.internalApi();
