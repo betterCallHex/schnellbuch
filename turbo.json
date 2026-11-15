@@ -1,0 +1,22 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "stream",
+  "globalDependencies": ["tsconfig.base.json"],
+  "globalPassThroughEnv": [
+    "CONVEX_DEPLOYMENT",
+    "VITE_CONVEX_URL",
+    "VITE_CONVEX_SITE_URL",
+    "VITE_SITE_URL",
+    "PORT"
+  ],
+  "tasks": {
+    "dev": { "cache": false, "persistent": true },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".output/**", ".vercel/output/**", "dist/**"]
+    },
+    "typecheck": {},
+    "test": { "cache": false },
+    "routes:generate": { "cache": false }
+  }
+}

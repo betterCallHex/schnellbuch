@@ -1,0 +1,12 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM"],
+    "types": ["node"],
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "isolatedModules": true
+  },
+  "include": ["./**/*"],
+  "exclude": ["./_generated", "./**/*.test.ts"]
+}
