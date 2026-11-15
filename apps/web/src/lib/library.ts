@@ -108,6 +108,7 @@ export function useDeleteBookmark() {
               url: bookmark.url,
               title: bookmark.title,
               folderId: bookmark.folderId,
+              savedAt: bookmark.savedAt ?? bookmark._creationTime,
             })
           ),
       },

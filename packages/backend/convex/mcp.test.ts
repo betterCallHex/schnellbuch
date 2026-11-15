@@ -68,6 +68,33 @@ describe("MCP server", () => {
     ]);
   });
 
+  it("list_bookmarks is newest saved first and reports each saved date", async () => {
+    const t = createTest();
+    const owner = await connectAgent(t, "owner");
+    await t.run((ctx) =>
+      ctx.db.insert("bookmarks", {
+        userId: "owner",
+        url: "https://example.com/old",
+        title: "Imported long ago",
+        savedAt: Date.UTC(2012, 4, 1),
+      })
+    );
+    await owner.call("add_bookmark", {
+      url: "https://example.com/new",
+      title: "Saved today",
+    });
+
+    const listed = await owner.call("list_bookmarks");
+
+    expect(listed.structuredContent.bookmarks).toEqual([
+      expect.objectContaining({ title: "Saved today" }),
+      expect.objectContaining({
+        title: "Imported long ago",
+        savedAt: "2012-05-01T00:00:00.000Z",
+      }),
+    ]);
+  });
+
   it("a malformed ID gets a message the model can act on", async () => {
     const t = createTest();
     const owner = await connectAgent(t, "owner");

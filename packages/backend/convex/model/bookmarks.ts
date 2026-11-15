@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { UserMutationCtx, UserQueryCtx } from "../functions";
 import { getOwnedFolder } from "./folders";
 import { normalizeUrl, placeholderTitle } from "./url";
@@ -9,6 +9,8 @@ export const addBookmarkArgs = {
   url: v.string(),
   title: v.optional(v.string()),
   folderId: v.optional(v.id("folders")),
+  // Restoring a deleted bookmark keeps its original date.
+  savedAt: v.optional(v.number()),
 };
 
 export const updateBookmarkArgs = {
@@ -25,9 +27,15 @@ export async function listBookmarks(ctx: UserQueryCtx) {
     .query("bookmarks")
     .withIndex("by_user_folder", (q) => q.eq("userId", ctx.userId))
     .collect();
-  return bookmarks.sort(
-    (first, second) => second._creationTime - first._creationTime
-  );
+  return bookmarks.sort(newestFirst);
+}
+
+export function savedAtOf(bookmark: Doc<"bookmarks">) {
+  return bookmark.savedAt ?? bookmark._creationTime;
+}
+
+export function newestFirst(first: Doc<"bookmarks">, second: Doc<"bookmarks">) {
+  return savedAtOf(second) - savedAtOf(first);
 }
 
 export async function addBookmark(
@@ -36,7 +44,13 @@ export async function addBookmark(
     url,
     title,
     folderId,
-  }: { url: string; title?: string; folderId?: Id<"folders"> }
+    savedAt,
+  }: {
+    url: string;
+    title?: string;
+    folderId?: Id<"folders">;
+    savedAt?: number;
+  }
 ) {
   const normalizedUrl = normalizeUrl(url);
   if (folderId) {
@@ -47,6 +61,7 @@ export async function addBookmark(
     url: normalizedUrl,
     title: title?.trim() || placeholderTitle(normalizedUrl),
     folderId,
+    savedAt: savedAt ?? Date.now(),
   });
   await ctx.scheduler.runAfter(0, internal.metadata.fetchMetadata, {
     bookmarkId,

@@ -17,6 +17,7 @@ import type * as functions from "../functions.js";
 import type * as http from "../http.js";
 import type * as mcp from "../mcp.js";
 import type * as metadata from "../metadata.js";
+import type * as migrations from "../migrations.js";
 import type * as model_bookmarks from "../model/bookmarks.js";
 import type * as model_describe from "../model/describe.js";
 import type * as model_folders from "../model/folders.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   mcp: typeof mcp;
   metadata: typeof metadata;
+  migrations: typeof migrations;
   "model/bookmarks": typeof model_bookmarks;
   "model/describe": typeof model_describe;
   "model/folders": typeof model_folders;

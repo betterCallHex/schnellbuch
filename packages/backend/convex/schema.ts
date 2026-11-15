@@ -14,5 +14,11 @@ export default defineSchema({
     title: v.string(),
     folderId: v.optional(v.id("folders")),
     faviconUrl: v.optional(v.string()),
-  }).index("by_user_folder", ["userId", "folderId"]),
+    // When the user saved it, in ms since the epoch. Imports keep the
+    // browser's original date. Optional only until `migrations:backfillSavedAt`
+    // has run on every deployment; read it through `savedAtOf`.
+    savedAt: v.optional(v.number()),
+  })
+    .index("by_user_folder", ["userId", "folderId"])
+    .index("by_user_url", ["userId", "url"]),
 });
