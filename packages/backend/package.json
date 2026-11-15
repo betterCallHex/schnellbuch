@@ -1,0 +1,36 @@
+{
+  "name": "@schnellbuch/backend",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./api": "./convex/_generated/api.js",
+    "./data-model": "./convex/_generated/dataModel.d.ts",
+    "./search": "./convex/model/search.ts",
+    "./tree": "./convex/model/tree.ts"
+  },
+  "scripts": {
+    "deploy": "convex deploy",
+    "dev": "convex dev",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p convex && tsc --noEmit -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@cfworker/json-schema": "4.1.6",
+    "@convex-dev/better-auth": "0.13.0",
+    "@leeoniya/ufuzzy": "1.0.19",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@t3-oss/env-core": "0.13.11",
+    "better-auth": "1.7.25",
+    "convex": "1.50.0",
+    "convex-helpers": "0.1.135",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@edge-runtime/vm": "5.0.0",
+    "@types/node": "24.19.2",
+    "convex-test": "0.0.71",
+    "typescript": "7.0.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}
