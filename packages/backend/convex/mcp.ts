@@ -15,7 +15,7 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 500;
 
 const INSTRUCTIONS =
-  "SchnellBuch holds the user's bookmarks in nested folders. Call list_folders to learn folder IDs and paths before filing bookmarks. A bookmark outside every folder is unsorted. Deleting a folder moves its bookmarks and subfolders up to its parent.";
+  "SchnellBuch holds the user's bookmarks in nested folders. Call list_folders to learn folder IDs and paths before filing bookmarks. A bookmark outside every folder sits at the top level. Deleting a folder moves its bookmarks and subfolders up to its parent.";
 
 export const handleMcp = httpAction(async (ctx, request) => {
   const userId = await authenticate(ctx, request);
@@ -78,7 +78,7 @@ function createBookmarkServer(ctx: ActionCtx, userId: string) {
     {
       title: "List bookmarks",
       description:
-        "Bookmarks newest first. Omit folderId for all bookmarks, pass null for unsorted ones.",
+        "Bookmarks newest first. Omit folderId for all bookmarks, pass null for top-level ones.",
       inputSchema: { folderId: z.string().nullable().optional(), limit },
       annotations: { readOnlyHint: true },
     },
@@ -118,7 +118,7 @@ function createBookmarkServer(ctx: ActionCtx, userId: string) {
     {
       title: "Add bookmark",
       description:
-        "Save a link. Without a title, the page title is fetched. Without folderId, it lands in unsorted.",
+        "Save a link. Without a title, the page title is fetched. Without folderId, it lands at the top level.",
       inputSchema: {
         url: z.string().min(1),
         title: z.string().optional(),
@@ -145,7 +145,7 @@ function createBookmarkServer(ctx: ActionCtx, userId: string) {
     {
       title: "Update bookmark",
       description:
-        "Change a bookmark's title or URL, or move it. folderId null moves it to unsorted.",
+        "Change a bookmark's title or URL, or move it. folderId null moves it to the top level.",
       inputSchema: {
         bookmarkId: z.string(),
         title: z.string().optional(),

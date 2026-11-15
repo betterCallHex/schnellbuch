@@ -1,13 +1,20 @@
+import { cn } from "cn";
 import { GlobeIcon } from "lucide-react";
 import { useState } from "react";
 
-export function Favicon({ src }: { src?: string }) {
+export function Favicon({
+  src,
+  className,
+}: {
+  src?: string;
+  className?: string;
+}) {
   const [failed, setFailed] = useState(false);
   if (!src || failed) {
     return (
       <GlobeIcon
         aria-hidden
-        className="text-muted-foreground size-4 shrink-0"
+        className={cn("text-muted-foreground size-4 shrink-0", className)}
       />
     );
   }
@@ -15,13 +22,13 @@ export function Favicon({ src }: { src?: string }) {
     // biome-ignore lint/a11y/noNoninteractiveElementInteractions: onError swaps a broken icon for the fallback, it is not a user interaction
     <img
       alt=""
-      className="size-4 shrink-0 rounded-sm"
-      height={16}
+      className={cn("size-4 shrink-0 rounded-sm", className)}
+      height={32}
       loading="lazy"
       onError={() => setFailed(true)}
       referrerPolicy="no-referrer"
       src={src}
-      width={16}
+      width={32}
     />
   );
 }

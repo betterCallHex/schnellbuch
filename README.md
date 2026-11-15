@@ -2,7 +2,9 @@
 
 Fast, open-source bookmarks that work in every browser, and that your AI agents can manage for you.
 
-- **Nested folders** in a sidebar. Drag bookmarks and folders to reorganise them.
+- **Finder-style browsing**: folders and bookmarks as icons, a path bar, back and forward. Click to select, double-click or ↵ to open, ⌘↑ to go up, right-click for actions, ⌘⌫ to delete (with Undo).
+- **Drag and drop** onto folders, or onto the path bar to move things up.
+- **⌘V** with a link copied saves it into the folder you're looking at.
 - **⌘K** searches every bookmark and folder as you type (fuzzy: `cnvx hub` finds "Convex Developer Hub"). Paste a link into it to save it.
 - **Bookmarklet** saves the page you're on from any browser, no extension needed.
 - **MCP server** so Claude, Cursor or any MCP client can list, search, add, move and delete your bookmarks.

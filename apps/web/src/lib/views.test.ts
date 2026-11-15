@@ -1,5 +1,5 @@
 import { describe, expect, test as it } from "bun:test";
-import { bookmarksInView, displayHost, parseView } from "./views";
+import { bookmarksIn, displayHost } from "./views";
 
 const bookmarks = [
   { title: "Bun", folderId: "dev" },
@@ -8,24 +8,16 @@ const bookmarks = [
 ];
 
 describe("views", () => {
-  it("a folder view shows only that folder's bookmarks", () => {
+  it("a folder holds only its own bookmarks", () => {
     expect(
-      bookmarksInView(bookmarks, parseView("dev")).map(
-        (bookmark) => bookmark.title
-      )
+      bookmarksIn(bookmarks, "dev").map((bookmark) => bookmark.title)
     ).toEqual(["Bun", "Convex"]);
   });
 
-  it("the unsorted view shows bookmarks outside every folder", () => {
+  it("the top level holds bookmarks outside every folder", () => {
     expect(
-      bookmarksInView(bookmarks, parseView("unsorted")).map(
-        (bookmark) => bookmark.title
-      )
+      bookmarksIn(bookmarks, undefined).map((bookmark) => bookmark.title)
     ).toEqual(["Essay"]);
-  });
-
-  it("no folder means all bookmarks", () => {
-    expect(bookmarksInView(bookmarks, parseView(undefined))).toHaveLength(3);
   });
 
   it("hosts drop the www prefix", () => {

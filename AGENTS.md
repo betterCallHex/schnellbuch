@@ -26,7 +26,7 @@ All of these pass before work counts as done:
 
 ## Words
 
-- **Unsorted**: a bookmark with no folder.
+- **Top level**: where folders and bookmarks without a parent folder live, shown as "Bookmarks" in the path bar.
 - **Agent token**: a bearer token for the MCP endpoint, made in Settings. Only its SHA-256 hash is stored.
 
 ## Testing

@@ -1,6 +1,8 @@
 import { api } from "@schnellbuch/backend/api";
 import { buildFolderTree, flattenFolderTree } from "@schnellbuch/backend/tree";
 import { useMutation, useQuery } from "convex/react";
+import { toast } from "sonner";
+import { succeeded } from "@/lib/errors";
 
 export function useLibrary() {
   const folders = useQuery(api.folders.list, {});
@@ -46,7 +48,7 @@ export function useUpdateBookmark() {
   );
 }
 
-export function useRemoveBookmark() {
+function useRemoveBookmark() {
   return useMutation(api.bookmarks.remove).withOptimisticUpdate(
     (store, { bookmarkId }) => {
       const bookmarks = store.getQuery(api.bookmarks.list, {});
@@ -88,4 +90,27 @@ export function useUpdateFolder() {
       );
     }
   );
+}
+
+export function useDeleteBookmark() {
+  const removeBookmark = useRemoveBookmark();
+  const addBookmark = useMutation(api.bookmarks.add);
+  return async (bookmark: BookmarkEntry) => {
+    if (!(await succeeded(removeBookmark({ bookmarkId: bookmark._id })))) {
+      return;
+    }
+    toast("Bookmark deleted", {
+      action: {
+        label: "Undo",
+        onClick: () =>
+          succeeded(
+            addBookmark({
+              url: bookmark.url,
+              title: bookmark.title,
+              folderId: bookmark.folderId,
+            })
+          ),
+      },
+    });
+  };
 }

@@ -1,87 +1,98 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { BookmarkIcon, PlusIcon } from "lucide-react";
-import { useOpenDialog } from "@/components/app-dialogs";
-import { BookmarkRow } from "@/components/bookmark-row";
-import { Button } from "@/components/ui/button";
-import { useLibrary } from "@/lib/library";
-import { bookmarksInView, parseView, type View } from "@/lib/views";
+import type { Id } from "@schnellbuch/backend/data-model";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Breadcrumbs } from "@/components/breadcrumbs";
+import { FinderGrid, type GridItem } from "@/components/finder-grid";
+import { FolderGlyph } from "@/components/folder-glyph";
+import { Toolbar } from "@/components/toolbar";
+import { type FolderEntry, useLibrary } from "@/lib/library";
+import { useGoUpShortcut, usePasteToSave } from "@/lib/shortcuts";
+import { bookmarksIn } from "@/lib/views";
 
 export const Route = createFileRoute("/_app/")({
   validateSearch: (search: Record<string, unknown>) => ({
     folder: typeof search.folder === "string" ? search.folder : undefined,
   }),
-  component: BookmarksPage,
+  component: BrowsePage,
 });
 
-function BookmarksPage() {
+function BrowsePage() {
   const { folder } = Route.useSearch();
-  const view = parseView(folder);
-  const { loaded, bookmarks, flatFolders } = useLibrary();
-  const openDialog = useOpenDialog();
-  const pathById = new Map(flatFolders.map((entry) => [entry._id, entry.path]));
-  const currentFolder =
-    view.kind === "folder"
-      ? flatFolders.find((entry) => entry._id === view.folderId)
-      : undefined;
-  const visible = bookmarksInView(bookmarks, view);
+  const folderId = folder as Id<"folders"> | undefined;
+  const { loaded, bookmarks, tree, flatFolders } = useLibrary();
+  const current = flatFolders.find((entry) => entry._id === folderId);
+  const missing = loaded && folderId !== undefined && current === undefined;
+  const trail = folderTrail(flatFolders, current);
+  const childFolders = current ? current.children : tree;
+  const items: GridItem[] = [
+    ...childFolders.map((child) => ({
+      kind: "folder" as const,
+      folder: child,
+      itemCount:
+        child.children.length + bookmarksIn(bookmarks, child._id).length,
+    })),
+    ...bookmarksIn(bookmarks, folderId).map((bookmark) => ({
+      kind: "bookmark" as const,
+      bookmark,
+    })),
+  ];
+
+  usePasteToSave(current?._id);
+  useGoUpShortcut(current?.parentId, current !== undefined);
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 p-4 md:p-6">
-      <div className="flex items-center gap-3">
-        <h1 className="min-w-0 flex-1 truncate py-1 text-lg font-semibold">
-          {heading(view, currentFolder?.path)}
-        </h1>
-        <Button
-          onClick={() =>
-            openDialog({ kind: "add-bookmark", folderId: currentFolder?._id })
-          }
-          size="sm"
-        >
-          <PlusIcon />
-          Add bookmark
-        </Button>
-      </div>
-      {loaded && visible.length === 0 && <EmptyState />}
-      <ul className="flex flex-col">
-        {visible.map((bookmark) => (
-          <BookmarkRow
-            bookmark={bookmark}
-            folderPath={
-              view.kind === "all" && bookmark.folderId
-                ? pathById.get(bookmark.folderId)
-                : undefined
-            }
-            folders={flatFolders}
-            key={bookmark._id}
+    <>
+      <Toolbar>
+        <Breadcrumbs trail={trail} />
+      </Toolbar>
+      <main className="flex-1">
+        {missing ? <MissingFolder /> : null}
+        {loaded && !missing && items.length === 0 ? <EmptyFolder /> : null}
+        {items.length > 0 ? (
+          <FinderGrid
+            items={items}
+            key={folderId ?? "top-level"}
+            label={current?.name ?? "Bookmarks"}
           />
-        ))}
-      </ul>
+        ) : null}
+      </main>
+    </>
+  );
+}
+
+function folderTrail(folders: FolderEntry[], current: FolderEntry | undefined) {
+  const byId = new Map(folders.map((folder) => [folder._id, folder]));
+  const trail: FolderEntry[] = [];
+  let cursor = current;
+  while (cursor) {
+    trail.unshift(cursor);
+    cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
+  }
+  return trail;
+}
+
+function EmptyFolder() {
+  return (
+    <div className="text-muted-foreground flex flex-col items-center gap-3 px-6 py-24 text-center text-sm">
+      <FolderGlyph className="h-16 w-20 opacity-60" />
+      <p className="text-foreground font-medium">This folder is empty</p>
+      <p>
+        Copy a link and press ⌘V here, use ⌘K, or ask your agent to save one.
+      </p>
     </div>
   );
 }
 
-function heading(view: View, folderPath: string | undefined) {
-  switch (view.kind) {
-    case "all":
-      return "All bookmarks";
-    case "unsorted":
-      return "Unsorted";
-    case "folder":
-      return folderPath ?? "Folder not found";
-    default:
-      return view satisfies never;
-  }
-}
-
-function EmptyState() {
+function MissingFolder() {
   return (
-    <div className="text-muted-foreground flex flex-col items-center gap-2 rounded-xl border border-dashed p-10 text-center text-sm">
-      <BookmarkIcon aria-hidden className="size-6" />
-      <p>No bookmarks here yet.</p>
-      <p>
-        Paste a link into ⌘K, use the bookmarklet, or ask your agent to save
-        one.
-      </p>
+    <div className="flex flex-col items-center gap-2 px-6 py-24 text-center text-sm">
+      <p className="font-medium">This folder no longer exists.</p>
+      <Link
+        className="text-meta underline"
+        search={{ folder: undefined }}
+        to="/"
+      >
+        Back to Bookmarks
+      </Link>
     </div>
   );
 }

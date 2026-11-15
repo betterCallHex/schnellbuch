@@ -4,12 +4,11 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { CheckIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { FolderSelect } from "@/components/folder-select";
+import { FolderSelect, TOP_LEVEL } from "@/components/folder-select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { errorMessage, succeeded } from "@/lib/errors";
 import { useLibrary, useUpdateBookmark } from "@/lib/library";
-import { UNSORTED } from "@/lib/views";
 
 export const Route = createFileRoute("/add")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -81,14 +80,14 @@ function SavedBookmark({
 }) {
   const { flatFolders } = useLibrary();
   const updateBookmark = useUpdateBookmark();
-  const [folder, setFolder] = useState<string>(UNSORTED);
+  const [folder, setFolder] = useState<string>(TOP_LEVEL);
 
   function moveTo(value: string) {
     setFolder(value);
     succeeded(
       updateBookmark({
         bookmarkId,
-        folderId: value === UNSORTED ? null : (value as Id<"folders">),
+        folderId: value === TOP_LEVEL ? null : (value as Id<"folders">),
       })
     );
   }

@@ -19,10 +19,12 @@ Use a named agent-browser session. Sign up through the UI with a throwaway email
 
 ## What to check
 
-- Paste a link into ⌘K → "Save …" saves it; the page title arrives within a few seconds.
-- Drag a bookmark row onto a sidebar folder, and a folder onto another folder. Use `agent-browser mouse down/move/up` with `--steps`; `agent-browser drag` is too fast for dnd-kit.
+- The top level shows folders, then bookmarks, as a grid. Click selects, double-click (or ↵) opens, ⌘↑ goes up, Back/Forward in the toolbar follow history.
+- Paste a link into ⌘K → "Save …", or dispatch a `paste` event on the page with a link: it saves into the open folder and the title arrives within a few seconds.
+- Right-click a tile for Open / Edit / Move to / Copy link / Delete. ⌘⌫ deletes the selection; the toast's Undo restores a bookmark.
+- Drag a tile onto a folder tile, or onto a crumb in the path bar to move it up. Use `agent-browser mouse down/move/up` with `--steps`; `agent-browser drag` is too fast for dnd-kit.
 - Bookmarklet: open `/add?url=<encoded>&title=<encoded>` at 420×320.
-- Phone width: 390×844, open the folder drawer with "Show folders".
+- Phone width: `agent-browser set device "iPhone 14"`; a tap opens a tile.
 
 ## MCP endpoint
 

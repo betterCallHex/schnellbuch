@@ -6,7 +6,7 @@ import { useMutation } from "convex/react";
 import {
   FolderIcon,
   FolderPlusIcon,
-  InboxIcon,
+  HomeIcon,
   PlusIcon,
   SettingsIcon,
 } from "lucide-react";
@@ -27,7 +27,7 @@ import {
 import { succeeded } from "@/lib/errors";
 import { useLibrary } from "@/lib/library";
 import { looksLikeLink } from "@/lib/link";
-import { displayHost, UNSORTED } from "@/lib/views";
+import { displayHost } from "@/lib/views";
 
 const RESULT_LIMIT = 8;
 
@@ -86,10 +86,7 @@ function PaletteResults({
   const openDialog = useOpenDialog();
   const addBookmark = useMutation(api.bookmarks.add);
   const { folder: activeFolder } = useSearch({ strict: false });
-  const currentFolderId =
-    activeFolder && activeFolder !== UNSORTED
-      ? (activeFolder as Id<"folders">)
-      : undefined;
+  const currentFolderId = activeFolder as Id<"folders"> | undefined;
   const needle = query.trim().toLowerCase();
   const matchingBookmarks = searchBookmarks(bookmarks, query, RESULT_LIMIT);
   const matchingFolders = flatFolders
@@ -189,12 +186,12 @@ function PaletteResults({
         </CommandItem>
         <CommandItem
           onSelect={() =>
-            run(() => navigate({ to: "/", search: { folder: UNSORTED } }))
+            run(() => navigate({ to: "/", search: { folder: undefined } }))
           }
-          value="unsorted"
+          value="top-level"
         >
-          <InboxIcon />
-          Go to Unsorted
+          <HomeIcon />
+          Go to Bookmarks
         </CommandItem>
         <CommandItem
           onSelect={() => run(() => navigate({ to: "/settings" }))}

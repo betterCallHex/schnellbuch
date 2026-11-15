@@ -1,5 +1,6 @@
 import type { FolderEntry } from "@/lib/library";
-import { UNSORTED } from "@/lib/views";
+
+export const TOP_LEVEL = "top-level";
 
 const INDENT = "   ";
 
@@ -21,10 +22,10 @@ export function FolderSelect({
       onChange={(event) => onChange(event.target.value)}
       value={value}
     >
-      <option value={UNSORTED}>Unsorted</option>
+      <option value={TOP_LEVEL}>Bookmarks</option>
       {folders.map((folder) => (
         <option key={folder._id} value={folder._id}>
-          {INDENT.repeat(folder.depth)}
+          {INDENT.repeat(folder.depth + 1)}
           {folder.name}
         </option>
       ))}

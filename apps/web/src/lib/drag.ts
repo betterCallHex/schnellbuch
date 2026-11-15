@@ -23,7 +23,7 @@ export function dragItemId(item: DragItem) {
 }
 
 export function dropTargetId(target: DropTarget) {
-  return `drop:${target.folderId ?? "unsorted"}`;
+  return `drop:${target.folderId ?? "top-level"}`;
 }
 
 export const dragSensors = [
@@ -31,7 +31,17 @@ export const dragSensors = [
     activationConstraints: dragStartConstraints,
     preventActivation: startsOnControl,
   }),
-  KeyboardSensor,
+  KeyboardSensor.configure({
+    keyboardCodes: {
+      start: ["Space"],
+      cancel: ["Escape"],
+      end: ["Space", "Enter"],
+      up: ["ArrowUp"],
+      down: ["ArrowDown"],
+      left: ["ArrowLeft"],
+      right: ["ArrowRight"],
+    },
+  }),
 ];
 
 function startsOnControl(event: PointerEvent) {

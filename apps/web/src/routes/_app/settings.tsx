@@ -4,6 +4,7 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { BookmarkPlusIcon, CopyIcon, KeyRoundIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
+import { Toolbar } from "@/components/toolbar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -29,11 +30,15 @@ const TOKEN_PLACEHOLDER = "<your token>";
 
 function Settings() {
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:p-6">
-      <h1 className="text-lg font-semibold">Settings</h1>
-      <AgentAccess />
-      <Bookmarklet />
-    </div>
+    <>
+      <Toolbar>
+        <h1 className="truncate px-1.5 font-semibold">Settings</h1>
+      </Toolbar>
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 md:p-6">
+        <AgentAccess />
+        <Bookmarklet />
+      </div>
+    </>
   );
 }
 

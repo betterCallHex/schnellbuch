@@ -9,7 +9,7 @@ import {
   useContext,
   useState,
 } from "react";
-import { FolderSelect } from "@/components/folder-select";
+import { FolderSelect, TOP_LEVEL } from "@/components/folder-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,7 +29,6 @@ import {
   useUpdateBookmark,
   useUpdateFolder,
 } from "@/lib/library";
-import { UNSORTED } from "@/lib/views";
 
 type DialogRequest =
   | { kind: "add-bookmark"; folderId?: Id<"folders"> }
@@ -99,7 +98,7 @@ function BookmarkForm({
   const addBookmark = useMutation(api.bookmarks.add);
   const updateBookmark = useUpdateBookmark();
   const [folder, setFolder] = useState<string>(
-    bookmark?.folderId ?? initialFolderId ?? UNSORTED
+    bookmark?.folderId ?? initialFolderId ?? TOP_LEVEL
   );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -107,7 +106,7 @@ function BookmarkForm({
     const form = new FormData(event.currentTarget);
     const url = String(form.get("url"));
     const title = String(form.get("title")).trim();
-    const folderId = folder === UNSORTED ? null : (folder as Id<"folders">);
+    const folderId = folder === TOP_LEVEL ? null : (folder as Id<"folders">);
     if (bookmark) {
       onDone();
       await succeeded(
@@ -239,7 +238,7 @@ function DeleteFolderConfirm({
     if (activeFolder === folder._id) {
       await navigate({
         to: "/",
-        search: { folder: folder.parentId ?? UNSORTED },
+        search: { folder: folder.parentId },
       });
     }
     await succeeded(removeFolder({ folderId: folder._id }));
