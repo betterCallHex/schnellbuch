@@ -24,7 +24,6 @@ export function Favicon({
       alt=""
       className={cn("size-4 shrink-0 rounded-sm", className)}
       height={32}
-      loading="lazy"
       onError={() => setFailed(true)}
       referrerPolicy="no-referrer"
       src={src}

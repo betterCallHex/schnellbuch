@@ -135,8 +135,8 @@ function PaletteResults({
               value={`bookmark-${bookmark._id}`}
             >
               <Favicon src={bookmark.faviconUrl} />
-              <span className="truncate">{bookmark.title}</span>
-              <span className="text-muted-foreground ml-auto truncate text-xs">
+              <span className="min-w-0 flex-1 truncate">{bookmark.title}</span>
+              <span className="text-muted-foreground max-w-[40%] shrink-0 truncate text-xs">
                 {bookmark.folderId
                   ? pathById.get(bookmark.folderId)
                   : displayHost(bookmark.url)}
