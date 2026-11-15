@@ -1,5 +1,5 @@
 import { api } from "@schnellbuch/backend/api";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
   ArchiveIcon,
@@ -7,6 +7,7 @@ import {
   CopyIcon,
   DownloadIcon,
   KeyRoundIcon,
+  UploadIcon,
 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
@@ -24,8 +25,10 @@ import { Label } from "@/components/ui/label";
 import { env } from "@/env";
 import { bookmarkletHref } from "@/lib/bookmarklet";
 import { errorMessage, succeeded } from "@/lib/errors";
+import { importProgress, importSummary } from "@/lib/import-summary";
 import { claudeCodeCommand, mcpEndpoint } from "@/lib/mcp-config";
 import { useExportLibrary } from "@/lib/use-export";
+import { useImportBookmarks } from "@/lib/use-import";
 
 export const Route = createFileRoute("/_app/settings")({ component: Settings });
 
@@ -205,6 +208,7 @@ function Bookmarklet() {
 
 function ImportExport() {
   const exportLibrary = useExportLibrary();
+  const importBookmarks = useImportBookmarks();
   return (
     <Card>
       <CardHeader>
@@ -213,17 +217,75 @@ function ImportExport() {
           Import and export
         </CardTitle>
         <CardDescription>
-          Download every folder and bookmark as a standard bookmarks file.
-          Chrome, Firefox, Safari and Edge can import it, so it doubles as a
-          backup.
+          Bring in the bookmarks file Chrome, Firefox, Safari or Edge exports.
+          It lands in one new folder, skipping links you already have. Export
+          downloads everything in the same format, so it doubles as a backup.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-wrap gap-2">
-        <Button onClick={exportLibrary} variant="outline">
-          <DownloadIcon />
-          Export bookmarks
-        </Button>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={importBookmarks} variant="outline">
+            <UploadIcon />
+            Import bookmarks…
+          </Button>
+          <Button onClick={exportLibrary} variant="outline">
+            <DownloadIcon />
+            Export bookmarks
+          </Button>
+        </div>
+        <LatestImport />
       </CardContent>
     </Card>
+  );
+}
+
+function LatestImport() {
+  const latest = useQuery(api.imports.latest, {});
+  if (!latest) {
+    return null;
+  }
+  const percent = Math.round(importProgress(latest) * 100);
+  return (
+    <div
+      aria-live="polite"
+      className="flex flex-col gap-2 rounded-lg border p-3 text-sm"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate font-medium">{latest.fileName}</span>
+        <span className="text-muted-foreground shrink-0">
+          {latest.status === "running" ? `${percent}%` : null}
+          {latest.status === "done" ? "Done" : null}
+          {latest.status === "failed" ? "Stopped" : null}
+        </span>
+      </div>
+      {latest.status === "running" ? (
+        <div
+          aria-label="Import progress"
+          aria-valuemax={100}
+          aria-valuemin={0}
+          aria-valuenow={percent}
+          className="bg-muted h-1.5 overflow-hidden rounded-full"
+          role="progressbar"
+        >
+          <div
+            className="bg-primary h-full transition-[width]"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      ) : null}
+      <p className="text-muted-foreground">
+        {latest.status === "failed" ? `${latest.error} ` : null}
+        {importSummary(latest)}
+      </p>
+      {latest.status === "done" ? (
+        <Link
+          className="underline underline-offset-2"
+          search={{ folder: latest.folderId }}
+          to="/"
+        >
+          Open the imported folder
+        </Link>
+      ) : null}
+    </div>
   );
 }

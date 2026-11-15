@@ -7,6 +7,7 @@ Fast, open-source bookmarks that work in every browser, and that your AI agents 
 - **⌘V** with a link copied saves it into the folder you're looking at.
 - **⌘K** searches every bookmark and folder as you type (fuzzy: `cnvx hub` finds "Convex Developer Hub"). Paste a link into it to save it.
 - **Bookmarklet** saves the page you're on from any browser, no extension needed.
+- **Import and export**: bring in the bookmarks file Chrome, Firefox, Safari or Edge exports (folders, titles and dates kept, links you already have skipped), and download your whole library in the same format as a backup.
 - **MCP server** so Claude, Cursor or any MCP client can list, search, add, move and delete your bookmarks.
 - Live everywhere: a change from an agent or another tab shows up immediately.
 
@@ -62,7 +63,7 @@ Tools: `list_folders`, `list_bookmarks`, `search_bookmarks`, `add_bookmark`, `up
 ## Choices that differ from the usual defaults
 
 - **Agent sign-in** uses `@convex-dev/mcp` (alpha) instead of Better Auth's API key plugin, which would need the Better Auth component's "local install" on Convex.
-- **No Convex backups, Axiom or PostHog**: not needed for a personal app. Export (planned) will double as a backup.
+- **No Convex backups, Axiom or PostHog**: not needed for a personal app. Export doubles as a backup.
 - **Biome `noJsxPropsBind` is off**: React Compiler already memoizes inline handlers.
 
 ## License

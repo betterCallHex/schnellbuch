@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import { decodeEntities, escapeHtml, readAttributes } from "./html";
 
 // The "Netscape bookmark file" every major browser exports and imports.
@@ -29,7 +30,8 @@ export type BookmarkFileSource =
   | "SchnellBuch"
   | "a browser";
 
-export class NotABookmarkFileError extends Error {
+// A ConvexError, so the message reaches the person who picked the file.
+class NotABookmarkFileError extends ConvexError<string> {
   constructor() {
     super(
       "That file isn't a bookmarks export. Export your bookmarks from your browser as an HTML file and try again."
@@ -89,9 +91,7 @@ function readToken(
   if (token.startsWith("<dl")) {
     // A list belongs to the folder heading just before it.
     state.sawList = true;
-    state.stack.push(
-      state.stack.length === 0 ? state.root : (state.pendingFolder ?? current)
-    );
+    state.stack.push(state.pendingFolder ?? current);
     state.pendingFolder = undefined;
     return;
   }

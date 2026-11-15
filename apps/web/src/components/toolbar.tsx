@@ -15,6 +15,7 @@ import {
   PlusIcon,
   SearchIcon,
   SettingsIcon,
+  UploadIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useOpenDialog } from "@/components/app-dialogs";
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
 import { useExportLibrary } from "@/lib/use-export";
+import { useImportBookmarks } from "@/lib/use-import";
 
 export function Toolbar({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -122,6 +124,7 @@ function NewMenu() {
 function MoreMenu() {
   const navigate = useNavigate();
   const exportLibrary = useExportLibrary();
+  const importBookmarks = useImportBookmarks();
 
   async function signOut() {
     await authClient.signOut();
@@ -143,6 +146,10 @@ function MoreMenu() {
         <EllipsisIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuItem onClick={importBookmarks}>
+          <UploadIcon />
+          Import bookmarks…
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={exportLibrary}>
           <DownloadIcon />
           Export bookmarks

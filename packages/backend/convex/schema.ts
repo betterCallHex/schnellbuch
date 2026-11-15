@@ -21,4 +21,25 @@ export default defineSchema({
   })
     .index("by_user_folder", ["userId", "folderId"])
     .index("by_user_url", ["userId", "url"]),
+
+  // One row per bookmarks-file import, so progress and the summary survive
+  // a page reload.
+  imports: defineTable({
+    userId: v.string(),
+    fileName: v.string(),
+    source: v.string(),
+    status: v.union(
+      v.literal("running"),
+      v.literal("done"),
+      v.literal("failed")
+    ),
+    folderId: v.id("folders"),
+    total: v.number(),
+    imported: v.number(),
+    duplicates: v.number(),
+    nonWeb: v.number(),
+    failed: v.number(),
+    error: v.optional(v.string()),
+    finishedAt: v.optional(v.number()),
+  }).index("by_user", ["userId"]),
 });

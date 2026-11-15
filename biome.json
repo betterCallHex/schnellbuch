@@ -15,7 +15,8 @@
     "includes": [
       "!**/routeTree.gen.ts",
       "!**/convex/_generated",
-      "!**/src/components/ui"
+      "!**/src/components/ui",
+      "!**/testing/fixtures"
     ]
   },
   "linter": {
