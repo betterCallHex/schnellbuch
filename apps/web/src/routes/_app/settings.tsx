@@ -1,7 +1,13 @@
 import { api } from "@schnellbuch/backend/api";
 import { createFileRoute } from "@tanstack/react-router";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { BookmarkPlusIcon, CopyIcon, KeyRoundIcon } from "lucide-react";
+import {
+  ArchiveIcon,
+  BookmarkPlusIcon,
+  CopyIcon,
+  DownloadIcon,
+  KeyRoundIcon,
+} from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { Toolbar } from "@/components/toolbar";
@@ -19,6 +25,7 @@ import { env } from "@/env";
 import { bookmarkletHref } from "@/lib/bookmarklet";
 import { errorMessage, succeeded } from "@/lib/errors";
 import { claudeCodeCommand, mcpEndpoint } from "@/lib/mcp-config";
+import { useExportLibrary } from "@/lib/use-export";
 
 export const Route = createFileRoute("/_app/settings")({ component: Settings });
 
@@ -31,6 +38,7 @@ function Settings() {
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 md:p-6">
         <AgentAccess />
         <Bookmarklet />
+        <ImportExport />
       </div>
     </>
   );
@@ -190,6 +198,31 @@ function Bookmarklet() {
           <BookmarkPlusIcon aria-hidden className="size-4" />
           Save to SchnellBuch
         </a>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ImportExport() {
+  const exportLibrary = useExportLibrary();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ArchiveIcon aria-hidden className="size-4" />
+          Import and export
+        </CardTitle>
+        <CardDescription>
+          Download every folder and bookmark as a standard bookmarks file.
+          Chrome, Firefox, Safari and Edge can import it, so it doubles as a
+          backup.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap gap-2">
+        <Button onClick={exportLibrary} variant="outline">
+          <DownloadIcon />
+          Export bookmarks
+        </Button>
       </CardContent>
     </Card>
   );

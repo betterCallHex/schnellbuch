@@ -8,6 +8,7 @@ import {
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
+  DownloadIcon,
   EllipsisIcon,
   FolderPlusIcon,
   LogOutIcon,
@@ -27,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
+import { useExportLibrary } from "@/lib/use-export";
 
 export function Toolbar({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -119,6 +121,7 @@ function NewMenu() {
 
 function MoreMenu() {
   const navigate = useNavigate();
+  const exportLibrary = useExportLibrary();
 
   async function signOut() {
     await authClient.signOut();
@@ -139,7 +142,12 @@ function MoreMenu() {
       >
         <EllipsisIcon />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuItem onClick={exportLibrary}>
+          <DownloadIcon />
+          Export bookmarks
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => navigate({ to: "/settings" })}>
           <SettingsIcon />
           Settings

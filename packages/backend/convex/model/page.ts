@@ -1,16 +1,8 @@
+import { decodeEntities, readAttributes } from "./html";
+
 const TITLE = /<title[^>]*>(?<title>[^<]*)<\/title>/iu;
 const TAG = /<(?<name>meta|link)\b[^>]*>/giu;
-const ATTRIBUTE =
-  /(?<name>[a-z:-]+)\s*=\s*(?:"(?<double>[^"]*)"|'(?<single>[^']*)')/giu;
-const ENTITY = /&(?<code>#x[\da-f]+|#\d+|amp|lt|gt|quot|apos|#39);/giu;
 const WHITESPACE_RUN = /\s+/gu;
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: "&",
-  lt: "<",
-  gt: ">",
-  quot: '"',
-  apos: "'",
-};
 
 export interface PageMetadata {
   faviconUrl: string;
@@ -47,31 +39,4 @@ export function defaultFaviconUrl(pageUrl: string) {
 
 function isIconRel(rel: string | undefined) {
   return rel?.toLowerCase().split(WHITESPACE_RUN).includes("icon") ?? false;
-}
-
-function readAttributes(tag: string) {
-  const attributes: Record<string, string> = {};
-  for (const match of tag.matchAll(ATTRIBUTE)) {
-    const { name, double, single } = match.groups ?? {};
-    if (name) {
-      attributes[name.toLowerCase()] = decodeEntities(double ?? single ?? "");
-    }
-  }
-  return attributes;
-}
-
-function decodeEntities(text: string) {
-  return text.replace(ENTITY, (entity, code: string) => {
-    const lowered = code.toLowerCase();
-    if (lowered === "#39") {
-      return "'";
-    }
-    if (lowered.startsWith("#x")) {
-      return String.fromCodePoint(Number.parseInt(lowered.slice(2), 16));
-    }
-    if (lowered.startsWith("#")) {
-      return String.fromCodePoint(Number.parseInt(lowered.slice(1), 10));
-    }
-    return NAMED_ENTITIES[lowered] ?? entity;
-  });
 }

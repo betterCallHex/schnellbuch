@@ -1,4 +1,5 @@
 import { userMutation, userQuery } from "./functions";
+import { exportLibrary } from "./model/backup";
 import {
   addBookmark,
   addBookmarkArgs,
@@ -22,3 +23,6 @@ export const remove = userMutation({
   args: deleteBookmarkArgs,
   handler: deleteBookmark,
 });
+
+// The whole library as a browser bookmarks file (Netscape HTML).
+export const exportFile = userQuery({ args: {}, handler: exportLibrary });
