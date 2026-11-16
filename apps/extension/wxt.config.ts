@@ -1,8 +1,33 @@
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 import babel from "@rolldown/plugin-babel";
+import { createEnv } from "@t3-oss/env-core";
 import tailwindcss from "@tailwindcss/vite";
 import { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "wxt";
+import * as z from "zod";
+import {
+  ANY_WEB_PAGE,
+  DEFAULT_SERVER_URL,
+  serverMatchPattern,
+} from "./src/lib/server-access";
+
+const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
+const rootEnvFile = `${repoRoot}.env.local`;
+
+const buildEnv = createEnv({
+  server: {
+    WXT_SCHNELLBUCH_URL: z.url().default(DEFAULT_SERVER_URL),
+  },
+  runtimeEnv: {
+    ...(existsSync(rootEnvFile)
+      ? parseEnv(readFileSync(rootEnvFile, "utf8"))
+      : {}),
+    ...process.env,
+  },
+  emptyStringAsUndefined: true,
+});
 
 export default defineConfig({
   srcDir: "src",
@@ -14,13 +39,24 @@ export default defineConfig({
   // A function, so every build step (one per entrypoint group) gets fresh
   // plugin instances. Same Tailwind and React Compiler setup as apps/web.
   vite: () => ({
-    envDir: fileURLToPath(new URL("../..", import.meta.url)),
+    envDir: repoRoot,
     plugins: [tailwindcss(), babel({ presets: [reactCompilerPreset()] })],
   }),
-  manifest: {
+  manifest: ({ manifestVersion }) => ({
     name: "SchnellBuch",
-    description: "Save the page you're on, or any link, to SchnellBuch.",
-    permissions: ["activeTab", "contextMenus", "storage"],
+    description:
+      "Save the page you're on, or any link, to SchnellBuch, and import this browser's bookmarks.",
+    permissions: [
+      "activeTab",
+      "bookmarks",
+      "contextMenus",
+      "scripting",
+      "storage",
+    ],
+    host_permissions: [serverMatchPattern(buildEnv.WXT_SCHNELLBUCH_URL)],
+    ...(manifestVersion === 2
+      ? { optional_permissions: ANY_WEB_PAGE }
+      : { optional_host_permissions: ANY_WEB_PAGE }),
     action: { default_title: "Save to SchnellBuch" },
     commands: {
       "save-page": {
@@ -37,5 +73,5 @@ export default defineConfig({
     browser_specific_settings: {
       gecko: { id: "schnellbuch@schnellbuch.extension" },
     },
-  },
+  }),
 });

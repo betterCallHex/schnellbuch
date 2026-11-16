@@ -18,8 +18,9 @@ import {
   SettingsIcon,
   UploadIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { useOpenDialog } from "@/components/app-dialogs";
+import { ImportDialog } from "@/components/import-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -33,7 +34,6 @@ import { authClient } from "@/lib/auth-client";
 import { tokenSubject } from "@/lib/mirror";
 import { clearOfflineData, OFFLINE_MESSAGE, useOffline } from "@/lib/offline";
 import { useExportLibrary } from "@/lib/use-export";
-import { useImportBookmarks } from "@/lib/use-import";
 
 export function Toolbar({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -130,7 +130,7 @@ function NewMenu() {
 function MoreMenu() {
   const navigate = useNavigate();
   const exportLibrary = useExportLibrary();
-  const importBookmarks = useImportBookmarks();
+  const [importing, setImporting] = useState(false);
   const offline = useOffline();
   const { token, offlineUserId } = useRouteContext({ from: "__root__" });
 
@@ -155,7 +155,7 @@ function MoreMenu() {
         <EllipsisIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuItem disabled={offline} onClick={importBookmarks}>
+        <DropdownMenuItem disabled={offline} onClick={() => setImporting(true)}>
           <UploadIcon />
           Import bookmarks…
         </DropdownMenuItem>
@@ -173,6 +173,7 @@ function MoreMenu() {
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
+      <ImportDialog onOpenChange={setImporting} open={importing} />
     </DropdownMenu>
   );
 }

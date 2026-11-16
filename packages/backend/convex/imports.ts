@@ -12,25 +12,30 @@ import {
   latestImport,
   writeImportBatch,
 } from "./model/import";
-import { countBookmarks, parseBookmarkFile } from "./model/netscape";
+import {
+  BOOKMARK_FILE_SOURCES,
+  countBookmarks,
+  parseBookmarkFile,
+} from "./model/netscape";
 
 // Browser exports are a few MB; this stays under Convex's argument limit.
 const MAX_FILE_LENGTH = 15_000_000;
-const SOURCES = [
-  "Chrome",
-  "Edge",
-  "Firefox",
-  "Safari",
-  "SchnellBuch",
-  "a browser",
-] as const;
-const source = v.union(...SOURCES.map((name) => v.literal(name)));
+const bookmarkSource = v.union(
+  ...BOOKMARK_FILE_SOURCES.map((name) => v.literal(name))
+);
 
 // Imports a browser's bookmarks file into one new folder. The file is fully
 // parsed before anything is written, so a bad file writes nothing.
 export const start = action({
-  args: { fileName: v.string(), html: v.string() },
-  handler: async (ctx, { fileName, html }): Promise<Doc<"imports"> | null> => {
+  args: {
+    fileName: v.string(),
+    html: v.string(),
+    source: v.optional(bookmarkSource),
+  },
+  handler: async (
+    ctx,
+    { fileName, html, source }
+  ): Promise<Doc<"imports"> | null> => {
     const userId = await requireUserId(ctx);
     if (html.length > MAX_FILE_LENGTH) {
       throw new ConvexError(
@@ -50,7 +55,7 @@ export const start = action({
       await ctx.runMutation(internal.imports.begin, {
         userId,
         fileName: fileName.slice(0, 200),
-        source: parsed.source,
+        source: source ?? parsed.source,
         total: countBookmarks(parsed.children),
       });
     const folderIds: Record<string, Id<"folders">> = { [rootKey]: folderId };
@@ -87,7 +92,7 @@ export const start = action({
 export const latest = userQuery({ args: {}, handler: latestImport });
 
 export const begin = agentMutation({
-  args: { fileName: v.string(), source, total: v.number() },
+  args: { fileName: v.string(), source: bookmarkSource, total: v.number() },
   handler: beginImport,
 });
 
