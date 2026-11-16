@@ -8,6 +8,9 @@
     "apps/web/src/**/*.test.ts",
     "packages/backend/vitest.config.ts",
     "packages/dev-stack/src/cli.ts",
+    "apps/extension/wxt.config.ts",
+    "apps/extension/entrypoints/**/*.ts",
+    "apps/extension/lib/**/*.test.ts",
     "packages/dev-stack/src/**/*.test.ts"
   ],
   "ignorePatterns": ["**/_generated/**", "**/routeTree.gen.ts"],

@@ -8,6 +8,7 @@ import { FolderSelect, TOP_LEVEL } from "@/components/folder-select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { errorMessage, succeeded } from "@/lib/errors";
+import { recallFolder, rememberFolder } from "@/lib/last-folder";
 import { useLibrary, useUpdateBookmark } from "@/lib/library";
 
 export const Route = createFileRoute("/add")({
@@ -25,8 +26,14 @@ export const Route = createFileRoute("/add")({
 
 type SaveState =
   | { status: "saving" }
-  | { status: "saved"; bookmarkId: Id<"bookmarks"> }
+  | {
+      status: "saved";
+      bookmarkId: Id<"bookmarks">;
+      folderId: Id<"folders"> | undefined;
+    }
   | { status: "failed"; message: string };
+
+const FOLDER_GONE = "Folder not found.";
 
 function AddFromBookmarklet() {
   const { url, title } = Route.useSearch();
@@ -40,8 +47,27 @@ function AddFromBookmarklet() {
       return;
     }
     started.current = true;
-    addBookmark({ url, title })
-      .then((bookmarkId) => setState({ status: "saved", bookmarkId }))
+    const remembered = recallFolder() as Id<"folders"> | undefined;
+    const save = async () => {
+      try {
+        return {
+          bookmarkId: await addBookmark({ url, title, folderId: remembered }),
+          folderId: remembered,
+        };
+      } catch (error) {
+        // The remembered folder was deleted since: save at the top level.
+        if (remembered && errorMessage(error) === FOLDER_GONE) {
+          rememberFolder(undefined);
+          return {
+            bookmarkId: await addBookmark({ url, title }),
+            folderId: undefined,
+          };
+        }
+        throw error;
+      }
+    };
+    save()
+      .then((saved) => setState({ status: "saved", ...saved }))
       .catch((error: unknown) =>
         setState({ status: "failed", message: errorMessage(error) })
       );
@@ -65,7 +91,13 @@ function SaveStatus({ state, title }: { state: SaveState; title: string }) {
         </p>
       );
     case "saved":
-      return <SavedBookmark bookmarkId={state.bookmarkId} title={title} />;
+      return (
+        <SavedBookmark
+          bookmarkId={state.bookmarkId}
+          initialFolder={state.folderId}
+          title={title}
+        />
+      );
     default:
       return state satisfies never;
   }
@@ -73,17 +105,20 @@ function SaveStatus({ state, title }: { state: SaveState; title: string }) {
 
 function SavedBookmark({
   bookmarkId,
+  initialFolder,
   title,
 }: {
   bookmarkId: Id<"bookmarks">;
+  initialFolder: Id<"folders"> | undefined;
   title: string;
 }) {
   const { flatFolders } = useLibrary();
   const updateBookmark = useUpdateBookmark();
-  const [folder, setFolder] = useState<string>(TOP_LEVEL);
+  const [folder, setFolder] = useState<string>(initialFolder ?? TOP_LEVEL);
 
   function moveTo(value: string) {
     setFolder(value);
+    rememberFolder(value === TOP_LEVEL ? undefined : value);
     succeeded(
       updateBookmark({
         bookmarkId,

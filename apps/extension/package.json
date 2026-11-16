@@ -1,0 +1,23 @@
+{
+  "name": "@schnellbuch/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "wxt build -b chrome && wxt build -b firefox && wxt build -b edge",
+    "dev": "wxt",
+    "postinstall": "wxt prepare",
+    "test": "bun test lib",
+    "typecheck": "wxt prepare && tsc --noEmit",
+    "zip": "wxt zip -b chrome && wxt zip -b firefox && wxt zip -b edge"
+  },
+  "dependencies": {
+    "@t3-oss/env-core": "0.13.11",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.4",
+    "typescript": "7.0.2",
+    "wxt": "0.21.5"
+  }
+}

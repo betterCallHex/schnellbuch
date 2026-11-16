@@ -24,7 +24,8 @@ All of these pass before work counts as done:
 - `apps/web/src/routes/connect.tsx` is the page where users approve an agent. Keep it unframeable and keep the device-code check.
 - `packages/dev-stack`: `bun run dev:verify`, the per-worktree local stack.
 - `apps/web`: TanStack Start app. Routes in `src/routes`, the authenticated shell is `src/routes/_app.tsx`.
-- Env vars are read only through t3-env: `apps/web/src/env.ts`, `packages/backend/convex/env.ts`, and the `createEnv` call in `apps/web/vite.config.ts`. Add new variables there and to `.env.example`.
+- `apps/extension`: the WXT browser extension. It only opens the web app's `/add` popup; keep it free of auth and backend calls.
+- Env vars are read only through t3-env: `apps/web/src/env.ts`, `packages/backend/convex/env.ts`, `apps/extension/lib/env.ts`, and the `createEnv` call in `apps/web/vite.config.ts`. Add new variables there and to `.env.example`.
 
 ## Words
 

@@ -12,3 +12,4 @@ dev-dist
 .DS_Store
 .fallow
 *.log
+.wxt

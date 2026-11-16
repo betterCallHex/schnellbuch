@@ -33,6 +33,16 @@ Use a named agent-browser session. Sign in on `/sign-in` as Ada or Bob with the 
 - Settings → Recent agent changes lists bulk changes an agent made, each with Undo.
 - Phone width: `agent-browser set device "iPhone 14"`; a tap opens a tile.
 
+## Browser extension
+
+1. Build it for this stack: `source <stack>/env.sh && WXT_SCHNELLBUCH_URL=$SCHNELLBUCH_WEB_URL bunx --cwd apps/extension wxt build -b chrome`.
+2. Load `apps/extension/.output/chrome-mv3` in Playwright's Chromium: `chromium.launchPersistentContext("", { channel: "chromium", args: ["--disable-extensions-except=<dir>", "--load-extension=<dir>"] })`. Headless works.
+3. Toolbar clicks, shortcuts and context menus are browser UI that automation can't press, so fire the extension's own listeners from its service worker with the arguments Chrome passes (`ctx.serviceWorkers()[0].evaluate(...)`):
+   - toolbar: `chrome.action.onClicked.dispatch({ id: 1, url, title })`
+   - shortcut: `chrome.commands.onCommand.dispatch("save-page", { id: 1, url, title })`
+   - link menu: `chrome.contextMenus.onClicked.dispatch({ menuItemId: "save-link", linkUrl, pageUrl, editable: false }, tab)`
+4. Each opens the `/add` popup in a new page. Signed out, it goes through `/sign-in` (wait for `networkidle` before typing) and then saves the original page. Pick a folder; the next save preselects it. A `chrome://` page sets the badge to "×" instead. The options page is `chrome-extension://<id>/options.html`.
+
 ## MCP endpoint
 
 The server is `$SCHNELLBUCH_MCP_URL`. Keep keys and tokens out of logs.

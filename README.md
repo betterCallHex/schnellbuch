@@ -6,6 +6,7 @@ Fast, open-source bookmarks that work in every browser, and that your AI agents 
 - **Drag and drop** onto folders, or onto the path bar to move things up.
 - **⌘V** with a link copied saves it into the folder you're looking at.
 - **⌘K** searches every bookmark and folder as you type (fuzzy: `cnvx hub` finds "Convex Developer Hub"). Paste a link into it to save it.
+- **Browser extension** for Chrome, Firefox and Edge: the toolbar button or Alt+Shift+S saves the current tab, and right-clicking a link saves it. The save popup remembers the folder you used last.
 - **Bookmarklet** saves the page you're on from any browser, no extension needed.
 - **Import and export**: bring in the bookmarks file Chrome, Firefox, Safari or Edge exports (folders, titles and dates kept, links you already have skipped), and download your whole library in the same format as a backup.
 - **MCP server** so Claude, Cursor or any MCP client can list, search, add, move and delete your bookmarks.
@@ -37,6 +38,16 @@ Open http://localhost:3000 and create an account.
 ### Who can sign up
 
 Only addresses in `SIGNUP_ALLOWED_EMAILS` can create an account. It's a comma-separated list of addresses (`me@example.com`) or whole domains (`@family.example`), compared case-insensitively. Anyone else sees "Sign-ups are closed". An empty or missing list closes sign-ups entirely, and accounts that already exist keep signing in whatever the list says.
+
+## Browser extension
+
+`apps/extension` (WXT) builds Chrome, Firefox and Edge versions into `apps/extension/.output/`:
+
+```sh
+WXT_SCHNELLBUCH_URL=https://your-schnellbuch.example bun run --cwd apps/extension build
+```
+
+Load `.output/chrome-mv3` (or `edge-mv3`) as an unpacked extension, or `.output/firefox-mv2` as a temporary add-on in Firefox. `WXT_SCHNELLBUCH_URL` is the default address; anyone can change it on the extension's options page. Every way of saving opens SchnellBuch's `/add` popup, so sign-in and folders work exactly as they do with the bookmarklet.
 
 ## Connect an agent
 
