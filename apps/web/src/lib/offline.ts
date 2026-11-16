@@ -14,6 +14,7 @@ import type {
 } from "convex/server";
 import { ConvexError } from "convex/values";
 import { useEffect, useSyncExternalStore } from "react";
+import { env } from "@/env";
 import { deleteMirror, rememberLastUser } from "@/lib/mirror-store";
 import { PAGES_CACHE } from "@/lib/pages-cache";
 
@@ -146,7 +147,7 @@ export function useSignedInQuery<Query extends FunctionReference<"query">>(
 }
 
 export function registerServiceWorker() {
-  if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  if (env.PROD && "serviceWorker" in navigator) {
     navigator.serviceWorker.register("/service-worker.js").catch(() => {
       // No offline support in this browser; everything else still works.
     });

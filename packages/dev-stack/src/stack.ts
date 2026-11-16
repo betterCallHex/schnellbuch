@@ -14,6 +14,8 @@ import { createServer } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { createEnv } from "@t3-oss/env-core";
+import * as z from "zod";
 import {
   portsFor,
   SLOT_COUNT,
@@ -59,8 +61,14 @@ const repoRoot = (
 const backendDir = join(repoRoot, "packages", "backend");
 const webDir = join(repoRoot, "apps", "web");
 
+const env = createEnv({
+  server: { XDG_CACHE_HOME: z.string().optional() },
+  runtimeEnv: process.env,
+  emptyStringAsUndefined: true,
+});
+
 function cacheRoot() {
-  return process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache");
+  return env.XDG_CACHE_HOME ?? join(homedir(), ".cache");
 }
 
 // Outside the repo, so passwords, keys and data never end up in git.

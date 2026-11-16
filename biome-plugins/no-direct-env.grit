@@ -1,0 +1,15 @@
+language js
+
+or {
+  `process.env.$name`,
+  `process.env[$name]`,
+  `import.meta.env.$name`,
+  `import.meta.env[$name]`,
+  `Bun.env.$name`,
+  `Bun.env[$name]`,
+  `const { $names } = process.env`,
+  `const { $names } = import.meta.env`,
+  `const { $names } = Bun.env`
+} as $read where {
+  register_diagnostic(span=$read, message="Read env vars through a t3-env createEnv schema, never directly. Declare the variable in that package's createEnv and in .env.example.")
+}
