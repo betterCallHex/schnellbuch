@@ -13,6 +13,8 @@ import {
 } from "@/lib/mirror";
 import { loadMirror, rememberLastUser, saveMirror } from "@/lib/mirror-store";
 import { useOffline, useSignedInQuery } from "@/lib/offline";
+import { applyEdits, type LibraryData } from "@/lib/offline-queue";
+import { useQueuedEdits, useQueueSync } from "@/lib/offline-queue-store";
 
 const MIRROR_WRITE_DELAY_MS = 1000;
 
@@ -58,14 +60,27 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     mirror,
     offline,
   });
-  const tree = buildFolderTree(chosen.folders);
+  const loaded = chosen.source !== "loading";
+  const base: LibraryData | undefined = loaded
+    ? { folders: chosen.folders, bookmarks: chosen.bookmarks }
+    : undefined;
+  useQueueSync(userId, base);
+  const queued = useQueuedEdits(userId);
+  const view = applyEdits(
+    base ?? { folders: [], bookmarks: [] },
+    queued.map((record) => record.edit),
+    userId ?? ""
+  );
+  const tree = buildFolderTree(view.folders);
   const library: Library = {
-    loaded: chosen.source !== "loading",
+    loaded,
     source: chosen.source,
     mirroredAt: chosen.mirroredAt,
-    bookmarks: chosen.bookmarks,
+    bookmarks: view.bookmarks,
+    pendingIds: view.pendingIds,
     tree,
     flatFolders: flattenFolderTree(tree),
+    userId,
   };
   return (
     <LibraryContext.Provider value={library}>

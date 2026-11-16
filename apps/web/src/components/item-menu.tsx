@@ -16,12 +16,8 @@ import {
   useLibrary,
 } from "@/lib/library";
 import { useLibraryEdits } from "@/lib/library-edits";
-import {
-  type LibraryItem,
-  putOnClipboard,
-  SHORTCUTS,
-  shortcutLabel,
-} from "@/lib/shortcuts";
+import type { LibraryItem } from "@/lib/selection";
+import { putOnClipboard, SHORTCUTS, shortcutLabel } from "@/lib/shortcuts";
 
 export function BookmarkMenu({
   bookmark,

@@ -1,3 +1,5 @@
+import { createStore } from "zustand/vanilla";
+
 export interface HistoryEntry {
   label: string;
   redo: () => Promise<unknown>;
@@ -5,30 +7,28 @@ export interface HistoryEntry {
 }
 
 interface HistoryState {
-  canRedo: boolean;
-  canUndo: boolean;
+  future: HistoryEntry[];
+  past: HistoryEntry[];
 }
 
 const DEFAULT_LIMIT = 100;
 
-export function createHistory(limit = DEFAULT_LIMIT) {
-  let past: HistoryEntry[] = [];
-  let future: HistoryEntry[] = [];
-  let running = false;
-  let snapshot: HistoryState = { canUndo: false, canRedo: false };
-  const aliases = new Map<string, string>();
-  const listeners = new Set<() => void>();
+export function nextUndo(state: HistoryState) {
+  return state.past.at(-1);
+}
 
-  function changed() {
-    snapshot = { canUndo: past.length > 0, canRedo: future.length > 0 };
-    for (const listener of listeners) {
-      listener();
-    }
-  }
+export function nextRedo(state: HistoryState) {
+  return state.future.at(-1);
+}
+
+export function createHistory(limit = DEFAULT_LIMIT) {
+  const store = createStore<HistoryState>(() => ({ past: [], future: [] }));
+  const aliases = new Map<string, string>();
+  let running = false;
 
   async function step(direction: "undo" | "redo") {
-    const from = direction === "undo" ? past : future;
-    const entry = from.at(-1);
+    const state = store.getState();
+    const entry = direction === "undo" ? nextUndo(state) : nextRedo(state);
     if (running || !entry) {
       return;
     }
@@ -38,22 +38,23 @@ export function createHistory(limit = DEFAULT_LIMIT) {
     } finally {
       running = false;
     }
-    if (direction === "undo") {
-      past = past.slice(0, -1);
-      future = [...future, entry];
-    } else {
-      future = future.slice(0, -1);
-      past = [...past, entry];
-    }
-    changed();
+    store.setState(({ past, future }) => {
+      const without = (entries: HistoryEntry[]) =>
+        entries.filter((candidate) => candidate !== entry);
+      return direction === "undo"
+        ? { past: without(past), future: [...future, entry] }
+        : { past: [...past, entry], future: without(future) };
+    });
     return entry;
   }
 
   return {
+    store,
     record(entry: HistoryEntry) {
-      past = [...past, entry].slice(-limit);
-      future = [];
-      changed();
+      store.setState(({ past }) => ({
+        past: [...past, entry].slice(-limit),
+        future: [],
+      }));
     },
     undo: () => step("undo"),
     redo: () => step("redo"),
@@ -66,11 +67,6 @@ export function createHistory(limit = DEFAULT_LIMIT) {
         current = next;
       }
       return current as Id;
-    },
-    state: () => snapshot,
-    subscribe(listener: () => void) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
     },
   };
 }

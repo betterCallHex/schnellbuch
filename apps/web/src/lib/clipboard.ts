@@ -1,5 +1,6 @@
 import type { Id } from "@schnellbuch/backend/data-model";
-import { useSyncExternalStore } from "react";
+import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
 
 export type ClipboardItem =
   | { kind: "bookmark"; id: Id<"bookmarks">; name: string }
@@ -11,33 +12,20 @@ export interface Clip {
   text: string;
 }
 
-let held: Clip | undefined;
-const listeners = new Set<() => void>();
+const clipboard = createStore<{ clip?: Clip }>(() => ({}));
 
-export function hold(next: Clip | undefined) {
-  held = next;
-  for (const listener of listeners) {
-    listener();
-  }
+export function hold(clip: Clip | undefined) {
+  clipboard.setState({ clip });
 }
 
 export function heldClip() {
-  return held;
+  return clipboard.getState().clip;
 }
 
 export function useHeldClip() {
-  return useSyncExternalStore(
-    subscribe,
-    () => held,
-    () => undefined
-  );
+  return useStore(clipboard, (state) => state.clip);
 }
 
 export function claimsPaste(clip: Clip | undefined, pastedText: string) {
   return clip !== undefined && clip.text === pastedText;
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
 }

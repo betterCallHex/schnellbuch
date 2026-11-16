@@ -1,7 +1,8 @@
 import { useDraggable, useDroppable } from "@dnd-kit/react";
 import { useHotkeys } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useRef, useState } from "react";
+import { CloudUploadIcon } from "lucide-react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useOpenDialog } from "@/components/app-dialogs";
 import { Favicon } from "@/components/favicon";
 import { FolderGlyph } from "@/components/folder-glyph";
@@ -10,8 +11,13 @@ import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { useHeldClip } from "@/lib/clipboard";
 import { type DragItem, dragItemId, dropTargetId } from "@/lib/drag";
 import { GRID_ARROW_KEYS, nextGridIndex } from "@/lib/grid-navigation";
-import type { BookmarkEntry, FolderEntry } from "@/lib/library";
+import {
+  type BookmarkEntry,
+  type FolderEntry,
+  useLibrary,
+} from "@/lib/library";
 import { useLibraryEdits } from "@/lib/library-edits";
+import { showSelection } from "@/lib/selection";
 import { putOnClipboard, SHORTCUTS } from "@/lib/shortcuts";
 import { displayHost } from "@/lib/views";
 
@@ -33,11 +39,18 @@ export function FinderGrid({
   const openDialog = useOpenDialog();
   const edits = useLibraryEdits();
   const clip = useHeldClip();
+  const { pendingIds } = useLibrary();
   const keys = items.map(gridItemKey);
   const selectedIndex =
     selectedKey === null ? undefined : keys.indexOf(selectedKey);
   const selected =
     selectedIndex === undefined ? undefined : items[selectedIndex];
+
+  useEffect(() => {
+    showSelection(selected);
+  }, [selected]);
+
+  useEffect(() => () => showSelection(undefined), []);
 
   function open(item: GridItem) {
     if (item.kind === "folder") {
@@ -129,6 +142,7 @@ export function FinderGrid({
           itemKey: key,
           selected: key === selectedKey,
           cut: clip?.mode === "cut" && clip.item.id === itemId(item),
+          pending: pendingIds.has(itemId(item)),
           focusable:
             key === selectedKey || (selected === undefined && index === 0),
           onSelect: () => setSelectedKey(key),
@@ -160,6 +174,7 @@ interface TileProps {
   onClick: () => void;
   onOpen: () => void;
   onSelect: () => void;
+  pending: boolean;
   selected: boolean;
 }
 
@@ -231,6 +246,7 @@ function BookmarkTile({
 function Tile({
   itemKey,
   cut,
+  pending,
   selected,
   focusable,
   dropping,
@@ -274,8 +290,9 @@ function Tile({
           />
         }
       >
-        <span className="group-aria-selected:bg-muted group-data-[over=true]:bg-selection/20 group-data-[over=true]:ring-selection flex h-[4.5rem] w-full items-center justify-center rounded-lg transition-colors group-data-[over=true]:ring-2">
+        <span className="group-aria-selected:bg-muted group-data-[over=true]:bg-selection/20 group-data-[over=true]:ring-selection relative flex h-[4.5rem] w-full items-center justify-center rounded-lg transition-colors group-data-[over=true]:ring-2">
           {glyph}
+          {pending ? <PendingBadge /> : null}
         </span>
         <span className="group-aria-selected:bg-selection line-clamp-2 max-w-full rounded-md px-1.5 py-0.5 text-center text-[0.8125rem] leading-snug break-words group-aria-selected:text-white">
           {name}
@@ -286,6 +303,18 @@ function Tile({
       </ContextMenuTrigger>
       {menu}
     </ContextMenu>
+  );
+}
+
+function PendingBadge() {
+  return (
+    <span
+      className="bg-background text-muted-foreground absolute bottom-0.5 left-1/2 flex size-5 translate-x-5 items-center justify-center rounded-full border shadow-sm"
+      title="Waiting to sync"
+    >
+      <CloudUploadIcon aria-hidden className="size-3" />
+      <span className="sr-only">Waiting to sync</span>
+    </span>
   );
 }
 

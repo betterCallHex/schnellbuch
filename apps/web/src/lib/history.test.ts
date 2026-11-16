@@ -1,5 +1,5 @@
 import { describe, expect, test as it } from "bun:test";
-import { createHistory } from "./history";
+import { createHistory, nextRedo, nextUndo } from "./history";
 
 function counterEntry(state: { value: number }, label = "Add one") {
   return {
@@ -29,7 +29,7 @@ describe("createHistory", () => {
 
     expect((await history.redo())?.label).toBe("first");
     expect(state.value).toBe(1);
-    expect(history.state()).toEqual({ canUndo: true, canRedo: true });
+    expect(labels(history)).toEqual({ undo: "first", redo: "second" });
   });
 
   it("a new change clears what could be redone", async () => {
@@ -40,7 +40,7 @@ describe("createHistory", () => {
 
     history.record(counterEntry(state));
 
-    expect(history.state().canRedo).toBe(false);
+    expect(labels(history).redo).toBeUndefined();
     expect(await history.redo()).toBeUndefined();
   });
 
@@ -54,7 +54,7 @@ describe("createHistory", () => {
 
     await expect(history.undo()).rejects.toThrow("offline");
 
-    expect(history.state()).toEqual({ canUndo: true, canRedo: false });
+    expect(labels(history)).toEqual({ undo: "flaky", redo: undefined });
   });
 
   it("ignores undo and redo while one is still running", async () => {
@@ -106,14 +106,19 @@ describe("createHistory", () => {
     expect(history.resolve("untouched")).toBe("untouched");
   });
 
-  it("tells subscribers when undo or redo becomes possible", async () => {
+  it("tells subscribers what undo and redo would do next", async () => {
     const history = createHistory();
-    const seen: boolean[] = [];
-    history.subscribe(() => seen.push(history.state().canUndo));
+    const seen: (string | undefined)[] = [];
+    history.store.subscribe((state) => seen.push(nextUndo(state)?.label));
 
-    history.record(counterEntry({ value: 0 }));
+    history.record(counterEntry({ value: 0 }, "Move “Docs”"));
     await history.undo();
 
-    expect(seen).toEqual([true, false]);
+    expect(seen).toEqual(["Move “Docs”", undefined]);
   });
 });
+
+function labels(history: ReturnType<typeof createHistory>) {
+  const state = history.store.getState();
+  return { undo: nextUndo(state)?.label, redo: nextRedo(state)?.label };
+}

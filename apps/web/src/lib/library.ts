@@ -1,18 +1,29 @@
 import { api } from "@schnellbuch/backend/api";
 import type { Doc } from "@schnellbuch/backend/data-model";
 import type { FolderNode } from "@schnellbuch/backend/tree";
+import { useMutation } from "convex/react";
+import type { FunctionArgs } from "convex/server";
 import { createContext, useContext } from "react";
 import type { LibrarySource } from "@/lib/mirror";
-import { useOnlineMutation } from "@/lib/offline";
+import {
+  type EditArgs,
+  type EditKind,
+  type EditResult,
+  patchBookmark,
+  patchFolder,
+} from "@/lib/offline-queue";
+import { routeEdit, routeFolderCopy } from "@/lib/offline-queue-store";
 
 export interface Library {
   bookmarks: Doc<"bookmarks">[];
   flatFolders: FolderNode<Doc<"folders">>[];
   loaded: boolean;
   mirroredAt?: number;
+  pendingIds: ReadonlySet<string>;
   // "mirror": the copy saved on this device, shown while offline.
   source: LibrarySource;
   tree: FolderNode<Doc<"folders">>[];
+  userId?: string;
 }
 
 export const LibraryContext = createContext<Library | null>(null);
@@ -29,36 +40,59 @@ export function useLibrary() {
 export type FolderEntry = Library["flatFolders"][number];
 export type BookmarkEntry = Library["bookmarks"][number];
 
-export function useUpdateBookmark() {
-  return useOnlineMutation(api.bookmarks.update).withOptimisticUpdate(
+export function useLibraryMutations() {
+  const { userId } = useLibrary();
+  const duplicateFolder = useMutation(api.folders.duplicate);
+  const route =
+    <Kind extends EditKind>(
+      kind: Kind,
+      send: (args: EditArgs<Kind>) => Promise<EditResult<Kind>>
+    ) =>
+    (args: EditArgs<Kind>) =>
+      routeEdit(userId, kind, args, send);
+  return {
+    addBookmark: route("addBookmark", useMutation(api.bookmarks.add)),
+    duplicateBookmark: route(
+      "duplicateBookmark",
+      useMutation(api.bookmarks.duplicate)
+    ),
+    updateBookmark: route("updateBookmark", useUpdateBookmark()),
+    removeBookmark: route("removeBookmark", useRemoveBookmark()),
+    createFolder: route("createFolder", useMutation(api.folders.create)),
+    updateFolder: route("updateFolder", useUpdateFolder()),
+    removeFolder: route("removeFolder", useMutation(api.folders.remove)),
+    removeFolderWithContents: route(
+      "removeFolderWithContents",
+      useMutation(api.folders.removeWithContents)
+    ),
+    duplicateFolder: (args: FunctionArgs<typeof api.folders.duplicate>) =>
+      routeFolderCopy(userId, args, duplicateFolder),
+  };
+}
+
+export type LibraryMutations = ReturnType<typeof useLibraryMutations>;
+
+function useUpdateBookmark() {
+  return useMutation(api.bookmarks.update).withOptimisticUpdate(
     (store, change) => {
       const bookmarks = store.getQuery(api.bookmarks.list, {});
-      if (!bookmarks) {
-        return;
+      if (bookmarks) {
+        store.setQuery(
+          api.bookmarks.list,
+          {},
+          bookmarks.map((bookmark) =>
+            bookmark._id === change.bookmarkId
+              ? patchBookmark(bookmark, change)
+              : bookmark
+          )
+        );
       }
-      store.setQuery(
-        api.bookmarks.list,
-        {},
-        bookmarks.map((bookmark) => {
-          if (bookmark._id !== change.bookmarkId) {
-            return bookmark;
-          }
-          return {
-            ...bookmark,
-            ...(change.title === undefined ? {} : { title: change.title }),
-            ...(change.url === undefined ? {} : { url: change.url }),
-            ...(change.folderId === undefined
-              ? {}
-              : { folderId: change.folderId ?? undefined }),
-          };
-        })
-      );
     }
   );
 }
 
-export function useRemoveBookmark() {
-  return useOnlineMutation(api.bookmarks.remove).withOptimisticUpdate(
+function useRemoveBookmark() {
+  return useMutation(api.bookmarks.remove).withOptimisticUpdate(
     (store, { bookmarkId }) => {
       const bookmarks = store.getQuery(api.bookmarks.list, {});
       if (bookmarks) {
@@ -72,37 +106,21 @@ export function useRemoveBookmark() {
   );
 }
 
-export function useUpdateFolder() {
-  return useOnlineMutation(api.folders.update).withOptimisticUpdate(
+function useUpdateFolder() {
+  return useMutation(api.folders.update).withOptimisticUpdate(
     (store, change) => {
       const folders = store.getQuery(api.folders.list, {});
-      if (!folders) {
-        return;
+      if (folders) {
+        store.setQuery(
+          api.folders.list,
+          {},
+          folders.map((folder) =>
+            folder._id === change.folderId
+              ? patchFolder(folder, change)
+              : folder
+          )
+        );
       }
-      store.setQuery(
-        api.folders.list,
-        {},
-        folders.map((folder) => {
-          if (folder._id !== change.folderId) {
-            return folder;
-          }
-          return {
-            ...folder,
-            ...(change.name === undefined
-              ? {}
-              : { name: change.name.trim() || folder.name }),
-            ...(change.parentId === undefined
-              ? {}
-              : { parentId: change.parentId ?? undefined }),
-            ...(change.color === undefined
-              ? {}
-              : { color: change.color ?? undefined }),
-            ...(change.mark === undefined
-              ? {}
-              : { mark: change.mark ?? undefined }),
-          };
-        })
-      );
     }
   );
 }

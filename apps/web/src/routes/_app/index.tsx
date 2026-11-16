@@ -1,10 +1,12 @@
 import type { Id } from "@schnellbuch/backend/data-model";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { FinderGrid, type GridItem } from "@/components/finder-grid";
 import { FolderGlyph } from "@/components/folder-glyph";
 import { Toolbar } from "@/components/toolbar";
 import { type FolderEntry, useLibrary } from "@/lib/library";
+import { useSyncedId } from "@/lib/offline-queue-store";
 import { useGoUpShortcut, usePaste } from "@/lib/shortcuts";
 import { bookmarksIn } from "@/lib/views";
 
@@ -17,7 +19,10 @@ export const Route = createFileRoute("/_app/")({
 
 function BrowsePage() {
   const { folder } = Route.useSearch();
-  const folderId = folder as Id<"folders"> | undefined;
+  const navigate = Route.useNavigate();
+  const requestedId = folder as Id<"folders"> | undefined;
+  const syncedFolder = useSyncedId(requestedId) as Id<"folders"> | undefined;
+  const folderId = syncedFolder ?? requestedId;
   const { loaded, bookmarks, tree, flatFolders } = useLibrary();
   const current = flatFolders.find((entry) => entry._id === folderId);
   const missing = loaded && folderId !== undefined && current === undefined;
@@ -35,6 +40,12 @@ function BrowsePage() {
       bookmark,
     })),
   ];
+
+  useEffect(() => {
+    if (syncedFolder) {
+      navigate({ search: { folder: syncedFolder }, replace: true });
+    }
+  }, [navigate, syncedFolder]);
 
   usePaste(current?._id);
   useGoUpShortcut(current?.parentId, current !== undefined);

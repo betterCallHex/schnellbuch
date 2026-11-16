@@ -1,20 +1,24 @@
-import { api } from "@schnellbuch/backend/api";
 import type { Id } from "@schnellbuch/backend/data-model";
 import type {
   FolderColor,
   FolderMark,
 } from "@schnellbuch/backend/folder-style";
 import { toast } from "sonner";
+import { useStore } from "zustand";
 import { errorMessage, succeeded } from "@/lib/errors";
-import { createHistory, type HistoryEntry } from "@/lib/history";
+import {
+  createHistory,
+  type HistoryEntry,
+  nextRedo,
+  nextUndo,
+} from "@/lib/history";
 import {
   type BookmarkEntry,
   type FolderEntry,
-  useRemoveBookmark,
-  useUpdateBookmark,
-  useUpdateFolder,
+  type LibraryMutations,
+  useLibraryMutations,
 } from "@/lib/library";
-import { useOnlineMutation } from "@/lib/offline";
+import { syncedId } from "@/lib/offline-queue-store";
 import { displayHost } from "@/lib/views";
 
 type FolderId = Id<"folders">;
@@ -34,7 +38,6 @@ interface BookmarkFields {
 export const EDIT_TOAST = "library-edit";
 
 const tabHistory = createHistory();
-const live = tabHistory.resolve;
 
 export function undoLastEdit() {
   return stepHistory(tabHistory.undo, "Undone");
@@ -44,22 +47,23 @@ export function redoLastEdit() {
   return stepHistory(tabHistory.redo, "Redone");
 }
 
+export function useEditHistory() {
+  return {
+    undoLabel: useStore(tabHistory.store, (state) => nextUndo(state)?.label),
+    redoLabel: useStore(tabHistory.store, (state) => nextRedo(state)?.label),
+  };
+}
+
 export function liveId<ItemId extends string>(id: ItemId) {
   return live(id);
 }
 
 export function useLibraryEdits() {
-  return editsWith({
-    updateBookmark: useUpdateBookmark(),
-    removeBookmark: useRemoveBookmark(),
-    addBookmark: useOnlineMutation(api.bookmarks.add),
-    duplicateBookmark: useOnlineMutation(api.bookmarks.duplicate),
-    updateFolder: useUpdateFolder(),
-    createFolder: useOnlineMutation(api.folders.create),
-    removeFolder: useOnlineMutation(api.folders.remove),
-    duplicateFolder: useOnlineMutation(api.folders.duplicate),
-    removeFolderWithContents: useOnlineMutation(api.folders.removeWithContents),
-  });
+  const mutations = useLibraryMutations();
+  return {
+    ...bookmarkEdits(mutations),
+    ...folderEdits(mutations),
+  };
 }
 
 async function stepHistory(
@@ -76,29 +80,9 @@ async function stepHistory(
   }
 }
 
-interface Mutations {
-  addBookmark: ReturnType<typeof useOnlineMutation<typeof api.bookmarks.add>>;
-  createFolder: ReturnType<typeof useOnlineMutation<typeof api.folders.create>>;
-  duplicateBookmark: ReturnType<
-    typeof useOnlineMutation<typeof api.bookmarks.duplicate>
-  >;
-  duplicateFolder: ReturnType<
-    typeof useOnlineMutation<typeof api.folders.duplicate>
-  >;
-  removeBookmark: ReturnType<typeof useRemoveBookmark>;
-  removeFolder: ReturnType<typeof useOnlineMutation<typeof api.folders.remove>>;
-  removeFolderWithContents: ReturnType<
-    typeof useOnlineMutation<typeof api.folders.removeWithContents>
-  >;
-  updateBookmark: ReturnType<typeof useUpdateBookmark>;
-  updateFolder: ReturnType<typeof useUpdateFolder>;
-}
-
-function editsWith(mutations: Mutations) {
-  return {
-    ...bookmarkEdits(mutations),
-    ...folderEdits(mutations),
-  };
+function live<ItemId extends string>(id: ItemId): ItemId {
+  const current = syncedId(tabHistory.resolve(id));
+  return current === id ? id : live(current);
 }
 
 function bookmarkEdits({
@@ -106,7 +90,7 @@ function bookmarkEdits({
   duplicateBookmark,
   removeBookmark,
   updateBookmark,
-}: Mutations) {
+}: LibraryMutations) {
   const setFields = (bookmarkId: BookmarkId, fields: BookmarkFields) => () =>
     updateBookmark({
       bookmarkId: live(bookmarkId),
@@ -195,7 +179,7 @@ function folderEdits({
   removeFolderWithContents,
   updateBookmark,
   updateFolder,
-}: Mutations) {
+}: LibraryMutations) {
   const rename = (folderId: FolderId, name: string) => () =>
     updateFolder({ folderId: live(folderId), name });
   const restyle = (folderId: FolderId, style: FolderStyle) => () =>

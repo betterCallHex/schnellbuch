@@ -14,11 +14,7 @@ import {
   heldClip,
   hold,
 } from "@/lib/clipboard";
-import {
-  type BookmarkEntry,
-  type FolderEntry,
-  useLibrary,
-} from "@/lib/library";
+import { useLibrary } from "@/lib/library";
 import {
   EDIT_TOAST,
   liveId,
@@ -27,6 +23,7 @@ import {
   useLibraryEdits,
 } from "@/lib/library-edits";
 import { looksLikeLink } from "@/lib/link";
+import type { LibraryItem } from "@/lib/selection";
 
 const EDITABLE = "input, textarea, select, [contenteditable='true']";
 
@@ -54,10 +51,6 @@ export function useEditHistoryShortcuts() {
   useHotkey(SHORTCUTS.redo, redoLastEdit, { ignoreInputs: true });
 }
 
-export type LibraryItem =
-  | { kind: "bookmark"; bookmark: BookmarkEntry }
-  | { kind: "folder"; folder: FolderEntry };
-
 export async function putOnClipboard(entry: LibraryItem, mode: Clip["mode"]) {
   const { item, text } = clipboardContent(entry);
   try {
@@ -77,11 +70,11 @@ export async function putOnClipboard(entry: LibraryItem, mode: Clip["mode"]) {
   });
 }
 
-export function usePaste(folderId: Id<"folders"> | undefined) {
+export function usePasteClip(folderId: Id<"folders"> | undefined) {
   const edits = useLibraryEdits();
   const { bookmarks, flatFolders } = useLibrary();
 
-  function pasteClip(clip: Clip) {
+  return function pasteClip(clip: Clip) {
     const target = folderId ?? null;
     if (clip.item.kind === "bookmark") {
       const id = liveId(clip.item.id);
@@ -101,7 +94,12 @@ export function usePaste(folderId: Id<"folders"> | undefined) {
     return clip.mode === "cut"
       ? finishCut(edits.moveFolder(folder, target))
       : edits.pasteFolderCopy(folder, target);
-  }
+  };
+}
+
+export function usePaste(folderId: Id<"folders"> | undefined) {
+  const edits = useLibraryEdits();
+  const pasteClip = usePasteClip(folderId);
 
   const onPaste = useEffectEvent(async (event: ClipboardEvent) => {
     const text = event.clipboardData?.getData("text/plain").trim() ?? "";
