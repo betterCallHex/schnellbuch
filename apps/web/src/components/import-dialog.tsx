@@ -1,7 +1,8 @@
 import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { cn } from "cn";
-import { FileUpIcon, FolderInputIcon } from "lucide-react";
+import { FileUpIcon } from "lucide-react";
 import { type DragEvent, useRef, useState } from "react";
+import { BrowserLogo } from "@/components/browser-logo";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -85,7 +86,7 @@ function BrowserImport({ onStarted }: { onStarted: () => void }) {
           skipping links you already have.
         </DialogDescription>
       </DialogHeader>
-      <fieldset className="grid grid-cols-4 gap-2">
+      <fieldset className="grid grid-cols-4 gap-x-2 gap-y-3">
         <legend className="sr-only">Browser</legend>
         {BROWSERS.map((browser) => (
           <BrowserTile
@@ -118,17 +119,16 @@ function BrowserTile({
   return (
     <button
       aria-pressed={picked}
-      className="group hover:bg-muted aria-pressed:border-primary aria-pressed:bg-muted focus-visible:border-ring focus-visible:ring-ring/50 flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs font-medium transition-colors outline-none focus-visible:ring-3"
+      className="group focus-visible:ring-selection/60 flex flex-col items-center gap-1 rounded-xl p-1.5 outline-none select-none focus-visible:ring-2"
       onClick={() => onPick(browser)}
       type="button"
     >
-      <span
-        aria-hidden
-        className="bg-muted text-muted-foreground group-aria-pressed:bg-primary group-aria-pressed:text-primary-foreground flex size-8 items-center justify-center rounded-full text-sm font-semibold"
-      >
-        {browser.name.charAt(0)}
+      <span className="group-hover:bg-muted/60 group-aria-pressed:bg-muted flex h-16 w-full items-center justify-center rounded-lg transition-colors">
+        <BrowserLogo className="size-10 drop-shadow-sm" name={browser.name} />
       </span>
-      {browser.name}
+      <span className="group-aria-pressed:bg-selection rounded-md px-1.5 py-0.5 text-[0.8125rem] leading-snug group-aria-pressed:text-white">
+        {browser.name}
+      </span>
     </button>
   );
 }
@@ -147,7 +147,7 @@ function DirectImport({
         bookmarks to SchnellBuch, folders and all.
       </p>
       <Button onClick={() => onImport(browser)}>
-        <FolderInputIcon />
+        <BrowserLogo className="size-4" name={browser.name} />
         Import from {browser.name}
       </Button>
     </div>
