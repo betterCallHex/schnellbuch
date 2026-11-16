@@ -2,8 +2,6 @@ import { api } from "@schnellbuch/backend/api";
 import type { Doc } from "@schnellbuch/backend/data-model";
 import type { FolderNode } from "@schnellbuch/backend/tree";
 import { createContext, useContext } from "react";
-import { toast } from "sonner";
-import { succeeded } from "@/lib/errors";
 import type { LibrarySource } from "@/lib/mirror";
 import { useOnlineMutation } from "@/lib/offline";
 
@@ -59,7 +57,7 @@ export function useUpdateBookmark() {
   );
 }
 
-function useRemoveBookmark() {
+export function useRemoveBookmark() {
   return useOnlineMutation(api.bookmarks.remove).withOptimisticUpdate(
     (store, { bookmarkId }) => {
       const bookmarks = store.getQuery(api.bookmarks.list, {});
@@ -96,33 +94,15 @@ export function useUpdateFolder() {
             ...(change.parentId === undefined
               ? {}
               : { parentId: change.parentId ?? undefined }),
+            ...(change.color === undefined
+              ? {}
+              : { color: change.color ?? undefined }),
+            ...(change.mark === undefined
+              ? {}
+              : { mark: change.mark ?? undefined }),
           };
         })
       );
     }
   );
-}
-
-export function useDeleteBookmark() {
-  const removeBookmark = useRemoveBookmark();
-  const addBookmark = useOnlineMutation(api.bookmarks.add);
-  return async (bookmark: BookmarkEntry) => {
-    if (!(await succeeded(removeBookmark({ bookmarkId: bookmark._id })))) {
-      return;
-    }
-    toast("Bookmark deleted", {
-      action: {
-        label: "Undo",
-        onClick: () =>
-          succeeded(
-            addBookmark({
-              url: bookmark.url,
-              title: bookmark.title,
-              folderId: bookmark.folderId,
-              savedAt: bookmark.savedAt ?? bookmark._creationTime,
-            })
-          ),
-      },
-    });
-  };
 }

@@ -1,18 +1,18 @@
 import { useDraggable, useDroppable } from "@dnd-kit/react";
+import { useHotkeys } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
-import { type KeyboardEvent, type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { useOpenDialog } from "@/components/app-dialogs";
 import { Favicon } from "@/components/favicon";
 import { FolderGlyph } from "@/components/folder-glyph";
 import { BookmarkMenu, FolderMenu } from "@/components/item-menu";
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { useHeldClip } from "@/lib/clipboard";
 import { type DragItem, dragItemId, dropTargetId } from "@/lib/drag";
-import { isGridArrowKey, nextGridIndex } from "@/lib/grid-navigation";
-import {
-  type BookmarkEntry,
-  type FolderEntry,
-  useDeleteBookmark,
-} from "@/lib/library";
+import { GRID_ARROW_KEYS, nextGridIndex } from "@/lib/grid-navigation";
+import type { BookmarkEntry, FolderEntry } from "@/lib/library";
+import { useLibraryEdits } from "@/lib/library-edits";
+import { putOnClipboard, SHORTCUTS } from "@/lib/shortcuts";
 import { displayHost } from "@/lib/views";
 
 export type GridItem =
@@ -31,7 +31,8 @@ export function FinderGrid({
   const lastPointerType = useRef("mouse");
   const navigate = useNavigate();
   const openDialog = useOpenDialog();
-  const deleteBookmark = useDeleteBookmark();
+  const edits = useLibraryEdits();
+  const clip = useHeldClip();
   const keys = items.map(gridItemKey);
   const selectedIndex =
     selectedKey === null ? undefined : keys.indexOf(selectedKey);
@@ -51,7 +52,7 @@ export function FinderGrid({
       openDialog({ kind: "delete-folder", folder: item.folder });
       return;
     }
-    deleteBookmark(item.bookmark);
+    edits.deleteBookmark(item.bookmark);
   }
 
   function select(key: string | undefined) {
@@ -63,37 +64,55 @@ export function FinderGrid({
     }
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (isGridArrowKey(event.key) && !event.metaKey && !event.ctrlKey) {
-      event.preventDefault();
-      const next = nextGridIndex({
-        current: selectedIndex === -1 ? undefined : selectedIndex,
-        key: event.key,
-        columns: countColumns(gridRef.current),
-        count: items.length,
-      });
-      select(next === undefined ? undefined : keys[next]);
-      return;
-    }
-    if (!selected) {
-      return;
-    }
-    if (event.key === "Enter") {
-      event.preventDefault();
-      open(selected);
-    } else if (event.key === "Backspace" && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault();
-      remove(selected);
-    } else if (event.key === "Escape") {
-      setSelectedKey(null);
-    }
+  function step(key: (typeof GRID_ARROW_KEYS)[number]) {
+    const next = nextGridIndex({
+      current: selectedIndex === -1 ? undefined : selectedIndex,
+      key,
+      columns: countColumns(gridRef.current),
+      count: items.length,
+    });
+    select(next === undefined ? undefined : keys[next]);
   }
+
+  function withSelected(action: (item: GridItem) => unknown) {
+    return () => {
+      if (selected) {
+        action(selected);
+      }
+    };
+  }
+
+  useHotkeys(
+    [
+      ...GRID_ARROW_KEYS.map((key) => ({
+        hotkey: key,
+        callback: () => step(key),
+      })),
+      { hotkey: "Enter", callback: withSelected(open) },
+      { hotkey: "Mod+Backspace", callback: withSelected(remove) },
+      { hotkey: "Escape", callback: () => setSelectedKey(null) },
+    ],
+    { target: gridRef, ignoreInputs: false }
+  );
+
+  useHotkeys(
+    [
+      {
+        hotkey: SHORTCUTS.copy,
+        callback: withSelected((item) => putOnClipboard(item, "copy")),
+      },
+      {
+        hotkey: SHORTCUTS.cut,
+        callback: withSelected((item) => putOnClipboard(item, "cut")),
+      },
+    ],
+    { enabled: selected !== undefined, ignoreInputs: true }
+  );
 
   return (
     <div
       aria-label={label}
       className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-x-2 gap-y-5 p-4 outline-none md:grid-cols-[repeat(auto-fill,minmax(120px,1fr))] md:p-6"
-      onKeyDown={handleKeyDown}
       onPointerDown={(event) => {
         lastPointerType.current = event.pointerType;
         if (event.target === event.currentTarget) {
@@ -109,6 +128,7 @@ export function FinderGrid({
         const tile = {
           itemKey: key,
           selected: key === selectedKey,
+          cut: clip?.mode === "cut" && clip.item.id === itemId(item),
           focusable:
             key === selectedKey || (selected === undefined && index === 0),
           onSelect: () => setSelectedKey(key),
@@ -134,6 +154,7 @@ export function FinderGrid({
 }
 
 interface TileProps {
+  cut: boolean;
   focusable: boolean;
   itemKey: string;
   onClick: () => void;
@@ -161,7 +182,13 @@ function FolderTile({
     <Tile
       {...tile}
       dropping={isDropTarget}
-      glyph={<FolderGlyph className="h-14 w-[4.5rem] drop-shadow-sm" />}
+      glyph={
+        <FolderGlyph
+          className="h-14 w-[4.5rem] drop-shadow-sm"
+          color={folder.color}
+          mark={folder.mark}
+        />
+      }
       isDragging={isDragging}
       menu={<FolderMenu folder={folder} onOpen={tile.onOpen} />}
       name={folder.name}
@@ -203,6 +230,7 @@ function BookmarkTile({
 
 function Tile({
   itemKey,
+  cut,
   selected,
   focusable,
   dropping,
@@ -231,7 +259,8 @@ function Tile({
           // biome-ignore lint/a11y/useKeyWithClickEvents: the listbox handles arrow keys, Enter and ⌘⌫ for every option
           <div
             aria-selected={selected}
-            className="group focus-visible:ring-selection/60 flex flex-col items-center gap-1 rounded-xl p-1.5 outline-none select-none focus-visible:ring-2 data-[dragging=true]:opacity-40"
+            className="group focus-visible:ring-selection/60 flex flex-col items-center gap-1 rounded-xl p-1.5 outline-none select-none focus-visible:ring-2 data-[cut=true]:opacity-50 data-[dragging=true]:opacity-40"
+            data-cut={cut}
             data-dragging={isDragging}
             data-key={itemKey}
             data-over={dropping}
@@ -258,6 +287,10 @@ function Tile({
       {menu}
     </ContextMenu>
   );
+}
+
+function itemId(item: GridItem) {
+  return item.kind === "folder" ? item.folder._id : item.bookmark._id;
 }
 
 function gridItemKey(item: GridItem) {

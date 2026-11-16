@@ -1,5 +1,5 @@
-import { api } from "@schnellbuch/backend/api";
 import type { Id } from "@schnellbuch/backend/data-model";
+import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 
 import {
@@ -9,6 +9,7 @@ import {
   useContext,
   useState,
 } from "react";
+import { CustomizeFolderForm } from "@/components/customize-folder";
 import { FolderSelect, TOP_LEVEL } from "@/components/folder-select";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,21 +22,19 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { succeeded } from "@/lib/errors";
 import {
   type BookmarkEntry,
   type FolderEntry,
   useLibrary,
-  useUpdateBookmark,
-  useUpdateFolder,
 } from "@/lib/library";
-import { useOnlineMutation } from "@/lib/offline";
+import { useLibraryEdits } from "@/lib/library-edits";
 
 type DialogRequest =
   | { kind: "add-bookmark"; folderId?: Id<"folders"> }
   | { kind: "edit-bookmark"; bookmark: BookmarkEntry }
   | { kind: "new-folder"; parentId?: Id<"folders"> }
   | { kind: "rename-folder"; folder: FolderEntry }
+  | { kind: "customize-folder"; folder: FolderEntry }
   | { kind: "delete-folder"; folder: FolderEntry };
 
 const OpenDialogContext = createContext<(request: DialogRequest) => void>(
@@ -53,8 +52,12 @@ export function AppDialogsProvider({ children }: { children: ReactNode }) {
     <OpenDialogContext value={setRequest}>
       {children}
       <Dialog onOpenChange={(open) => open || close()} open={request !== null}>
-        <DialogContent>
-          {request ? <ActiveDialog onDone={close} request={request} /> : null}
+        <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto">
+          {request ? (
+            <HotkeysProvider exclusive scope="dialog">
+              <ActiveDialog onDone={close} request={request} />
+            </HotkeysProvider>
+          ) : null}
         </DialogContent>
       </Dialog>
     </OpenDialogContext>
@@ -79,6 +82,8 @@ function ActiveDialog({
       return <FolderNameForm onDone={onDone} parentId={request.parentId} />;
     case "rename-folder":
       return <FolderNameForm folder={request.folder} onDone={onDone} />;
+    case "customize-folder":
+      return <CustomizeFolderForm folder={request.folder} onDone={onDone} />;
     case "delete-folder":
       return <DeleteFolderConfirm folder={request.folder} onDone={onDone} />;
     default:
@@ -96,8 +101,7 @@ function BookmarkForm({
   onDone: () => void;
 }) {
   const { flatFolders } = useLibrary();
-  const addBookmark = useOnlineMutation(api.bookmarks.add);
-  const updateBookmark = useUpdateBookmark();
+  const edits = useLibraryEdits();
   const [folder, setFolder] = useState<string>(
     bookmark?.folderId ?? initialFolderId ?? TOP_LEVEL
   );
@@ -110,19 +114,15 @@ function BookmarkForm({
     const folderId = folder === TOP_LEVEL ? null : (folder as Id<"folders">);
     if (bookmark) {
       onDone();
-      await succeeded(
-        updateBookmark({ bookmarkId: bookmark._id, url, title, folderId })
-      );
+      await edits.editBookmark(bookmark, { url, title, folderId });
       return;
     }
     if (
-      await succeeded(
-        addBookmark({
-          url,
-          title: title || undefined,
-          folderId: folderId ?? undefined,
-        })
-      )
+      await edits.addBookmark({
+        url,
+        title: title || undefined,
+        folderId: folderId ?? undefined,
+      })
     ) {
       onDone();
     }
@@ -183,18 +183,15 @@ function FolderNameForm({
   parentId?: Id<"folders">;
   onDone: () => void;
 }) {
-  const createFolder = useOnlineMutation(api.folders.create);
-  const updateFolder = useUpdateFolder();
+  const edits = useLibraryEdits();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = String(new FormData(event.currentTarget).get("name"));
     onDone();
-    await succeeded(
-      folder
-        ? updateFolder({ folderId: folder._id, name })
-        : createFolder({ name, parentId })
-    );
+    await (folder
+      ? edits.renameFolder(folder, name)
+      : edits.createFolder({ name, parentId }));
   }
 
   return (
@@ -226,8 +223,8 @@ function DeleteFolderConfirm({
   folder: FolderEntry;
   onDone: () => void;
 }) {
-  const removeFolder = useOnlineMutation(api.folders.remove);
-  const { flatFolders } = useLibrary();
+  const edits = useLibraryEdits();
+  const { flatFolders, bookmarks } = useLibrary();
   const navigate = useNavigate();
   const { folder: activeFolder } = useSearch({ strict: false });
   const parentName = flatFolders.find(
@@ -242,7 +239,12 @@ function DeleteFolderConfirm({
         search: { folder: folder.parentId },
       });
     }
-    await succeeded(removeFolder({ folderId: folder._id }));
+    await edits.deleteFolder(
+      folder,
+      bookmarks
+        .filter((bookmark) => bookmark.folderId === folder._id)
+        .map((bookmark) => bookmark._id)
+    );
   }
 
   return (

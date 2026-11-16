@@ -53,9 +53,6 @@
 :root {
   --selection: oklch(0.56 0.19 256);
   --meta: oklch(0.55 0.15 252);
-  --folder-back: oklch(0.72 0.12 238);
-  --folder-front: oklch(0.8 0.1 232);
-  --folder-shine: oklch(0.88 0.06 230);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -94,9 +91,6 @@
   :root {
     --selection: oklch(0.6 0.19 256);
     --meta: oklch(0.72 0.13 250);
-    --folder-back: oklch(0.66 0.12 240);
-    --folder-front: oklch(0.76 0.11 235);
-    --folder-shine: oklch(0.84 0.07 232);
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);
@@ -141,4 +135,75 @@
   html {
     @apply font-sans;
   }
+}
+
+[data-folder-color] {
+  --folder-back: oklch(0.72 calc(var(--folder-chroma) * 1.2) var(--folder-hue));
+  --folder-front: oklch(0.8 var(--folder-chroma) calc(var(--folder-hue) - 6));
+  --folder-shine: oklch(
+    0.88 calc(var(--folder-chroma) * 0.6) calc(var(--folder-hue) - 8)
+  );
+  --folder-mark: oklch(0.5 calc(var(--folder-chroma) * 1.3) var(--folder-hue));
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-folder-color] {
+    --folder-back: oklch(
+      0.66 calc(var(--folder-chroma) * 1.2) calc(var(--folder-hue) + 2)
+    );
+    --folder-front: oklch(
+      0.76 calc(var(--folder-chroma) * 1.1) calc(var(--folder-hue) - 3)
+    );
+    --folder-shine: oklch(
+      0.84 calc(var(--folder-chroma) * 0.7) calc(var(--folder-hue) - 6)
+    );
+    --folder-mark: oklch(
+      0.45 calc(var(--folder-chroma) * 1.3) var(--folder-hue)
+    );
+  }
+}
+
+[data-folder-color="blue"] {
+  --folder-hue: 238;
+  --folder-chroma: 0.1;
+}
+
+[data-folder-color="graphite"] {
+  --folder-hue: 250;
+  --folder-chroma: 0.015;
+}
+
+[data-folder-color="red"] {
+  --folder-hue: 25;
+  --folder-chroma: 0.13;
+}
+
+[data-folder-color="orange"] {
+  --folder-hue: 58;
+  --folder-chroma: 0.13;
+}
+
+[data-folder-color="yellow"] {
+  --folder-hue: 95;
+  --folder-chroma: 0.14;
+}
+
+[data-folder-color="green"] {
+  --folder-hue: 150;
+  --folder-chroma: 0.12;
+}
+
+[data-folder-color="teal"] {
+  --folder-hue: 195;
+  --folder-chroma: 0.09;
+}
+
+[data-folder-color="purple"] {
+  --folder-hue: 302;
+  --folder-chroma: 0.12;
+}
+
+[data-folder-color="pink"] {
+  --folder-hue: 352;
+  --folder-chroma: 0.12;
 }

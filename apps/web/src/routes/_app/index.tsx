@@ -5,7 +5,7 @@ import { FinderGrid, type GridItem } from "@/components/finder-grid";
 import { FolderGlyph } from "@/components/folder-glyph";
 import { Toolbar } from "@/components/toolbar";
 import { type FolderEntry, useLibrary } from "@/lib/library";
-import { useGoUpShortcut, usePasteToSave } from "@/lib/shortcuts";
+import { useGoUpShortcut, usePaste } from "@/lib/shortcuts";
 import { bookmarksIn } from "@/lib/views";
 
 export const Route = createFileRoute("/_app/")({
@@ -36,7 +36,7 @@ function BrowsePage() {
     })),
   ];
 
-  usePasteToSave(current?._id);
+  usePaste(current?._id);
   useGoUpShortcut(current?.parentId, current !== undefined);
 
   return (
