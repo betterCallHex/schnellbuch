@@ -8,7 +8,8 @@
     "./folder-style": "./convex/model/style.ts",
     "./netscape": "./convex/model/netscape.ts",
     "./search": "./convex/model/search.ts",
-    "./tree": "./convex/model/tree.ts"
+    "./tree": "./convex/model/tree.ts",
+    "./url": "./convex/model/url.ts"
   },
   "scripts": {
     "deploy": "cd ../.. && convex deploy",
