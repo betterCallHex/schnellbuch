@@ -29,7 +29,7 @@ Use a named agent-browser session. Sign in on `/sign-in` as Ada or Bob with the 
 - Right-click a tile for Open / Edit / Move to / Copy link / Delete. ⌘⌫ deletes the selection; the toast's Undo restores a bookmark.
 - Drag a tile onto a folder tile, or onto a crumb in the path bar to move it up. Use `agent-browser mouse down/move/up` with `--steps`; `agent-browser drag` is too fast for dnd-kit.
 - Bookmarklet: open `/add?url=<encoded>&title=<encoded>` at 420×320.
-- Import and export: ⋯ → Export bookmarks downloads `schnellbuch-YYYY-MM-DD.html`; ⋯ → Import bookmarks… with a browser export (fixtures in `packages/backend/testing/fixtures`) shows progress in Settings and lands in one "Imported from …" folder.
+- Import and export: ⋯ → Export bookmarks downloads `schnellbuch-YYYY-MM-DD.html`; ⋯ → Import bookmarks… opens the browser picker; pick one without the extension and drop or choose a browser export (fixtures in `packages/backend/testing/fixtures`, `agent-browser upload 'input[type=file]' <file>`). It shows progress in Settings and lands in one "Imported from …" folder.
 - Settings → Recent agent changes lists bulk changes an agent made, each with Undo.
 - Phone width: `agent-browser set device "iPhone 14"`; a tap opens a tile.
 
@@ -49,13 +49,14 @@ The service worker only exists in a production build, and the server must run on
 
 ## Browser extension
 
-1. Build it for this stack: `source <stack>/env.sh && WXT_SCHNELLBUCH_URL=$SCHNELLBUCH_WEB_URL bunx --cwd apps/extension wxt build -b chrome`.
+1. Build it for this stack: `source <stack>/env.sh && cd apps/extension && WXT_SCHNELLBUCH_URL=$SCHNELLBUCH_WEB_URL bunx wxt build -b chrome`.
 2. Load `apps/extension/.output/chrome-mv3` in Playwright's Chromium: `chromium.launchPersistentContext("", { channel: "chromium", args: ["--disable-extensions-except=<dir>", "--load-extension=<dir>"] })`. Headless works.
 3. Toolbar clicks, shortcuts and context menus are browser UI that automation can't press, so fire the extension's own listeners from its service worker with the arguments Chrome passes (`ctx.serviceWorkers()[0].evaluate(...)`):
    - toolbar: `chrome.action.onClicked.dispatch({ id: 1, url, title })`
    - shortcut: `chrome.commands.onCommand.dispatch("save-page", { id: 1, url, title })`
    - link menu: `chrome.contextMenus.onClicked.dispatch({ menuItemId: "save-link", linkUrl, pageUrl, editable: false }, tab)`
 4. Each opens the `/add` popup in a new page. Signed out, it goes through `/sign-in` (wait for `networkidle` before typing) and then saves the original page. Pick a folder; the next save preselects it. A `chrome://` page sets the badge to "×" instead. The options page is `chrome-extension://<id>/options.html`.
+5. Browser import: agent-browser loads it too (`agent-browser --session <name> --extension <dir> open <app>`). On the app, `postMessage({channel:"schnellbuch:page",type:"hello"}, location.origin)` gets a `schnellbuch:extension` `ready` reply. Add bookmarks with `chrome.bookmarks.create` from the options page (the unpacked ID is the first 32 hex of the directory path's SHA-256, mapped 0-f → a-p), then ⋯ → Import bookmarks… → Chrome → Import from Chrome lands them in "Imported from Chrome …".
 
 ## MCP endpoint
 
