@@ -7,6 +7,7 @@ import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import * as z from "zod";
+import { convexSiteUrl, siteUrl } from "./src/lib/site-urls";
 
 const DEFAULT_PORT = 3000;
 
@@ -16,11 +17,15 @@ export default defineConfig(({ mode }) => {
     server: {
       PORT: z.coerce.number().int().default(DEFAULT_PORT),
       VITE_CONVEX_URL: z.url(),
-      VITE_CONVEX_SITE_URL: z.url(),
+      // Optional for cloud deployments: derived from VITE_CONVEX_URL.
+      VITE_CONVEX_SITE_URL: z.url().optional(),
       VITE_SITE_URL: z.url().optional(),
-      // Set by Vercel's build; Nitro then writes the client to Vercel's
-      // static output instead of .output/public.
+      // Set by Vercel's build. Nitro then writes Vercel's output format,
+      // and the site URL comes from the deployment.
       VERCEL: z.string().optional(),
+      VERCEL_ENV: z.string().optional(),
+      VERCEL_PROJECT_PRODUCTION_URL: z.string().optional(),
+      VERCEL_URL: z.string().optional(),
     },
     runtimeEnv: {
       VITE_CONVEX_URL: convexDevEnv.CONVEX_URL,
@@ -31,13 +36,21 @@ export default defineConfig(({ mode }) => {
   });
   Object.assign(process.env, {
     VITE_CONVEX_URL: buildEnv.VITE_CONVEX_URL,
-    VITE_CONVEX_SITE_URL: buildEnv.VITE_CONVEX_SITE_URL,
-    VITE_SITE_URL:
-      buildEnv.VITE_SITE_URL ?? `http://localhost:${buildEnv.PORT}`,
+    VITE_CONVEX_SITE_URL: convexSiteUrl(
+      buildEnv.VITE_CONVEX_URL,
+      buildEnv.VITE_CONVEX_SITE_URL
+    ),
+    VITE_SITE_URL: siteUrl({
+      explicit: buildEnv.VITE_SITE_URL,
+      port: buildEnv.PORT,
+      vercelEnv: buildEnv.VERCEL_ENV,
+      vercelProductionHost: buildEnv.VERCEL_PROJECT_PRODUCTION_URL,
+      vercelHost: buildEnv.VERCEL_URL,
+    }),
   });
 
   const clientOutDir = buildEnv.VERCEL
-    ? "../../.vercel/output/static"
+    ? ".vercel/output/static"
     : ".output/public";
 
   return {

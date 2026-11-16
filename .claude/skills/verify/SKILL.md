@@ -66,6 +66,18 @@ The server is `$SCHNELLBUCH_MCP_URL`. Keep keys and tokens out of logs.
 - **Device code:** `POST /mcp/oauth/device` with `client_id=mcp-agent`, open `verification_uri_complete`, tick the code-match box, Allow, then poll `/mcp/oauth/token`.
 - Cross-user: Bob's key must get "Folder not found." / "Bookmark not found." for Ada's IDs, including in the bulk tools (`move_items`, `delete_bookmarks`, `undo_change`).
 
+## Production smoke check
+
+After a production deploy (never deploy without the owner asking), run `bun run smoke` with `SMOKE_SITE_URL`, `SMOKE_CONVEX_URL`, `SMOKE_MCP_URL`, and optionally `SMOKE_MCP_KEY`, `SMOKE_EMAIL`, `SMOKE_PASSWORD` (the owner's own key and account; never print them). It only reads, and checks:
+
+- the sign-in page loads;
+- the manifest and service worker are served;
+- MCP answers 401 with OAuth discovery without credentials, and lists tools with a key;
+- signing in gives a Convex token and the library loads;
+- `/connect` sends `frame-ancestors 'none'`.
+
+Put its output in the PR. It also works against a local production build (see "Offline and install").
+
 ## Stop
 
 `agent-browser close`, then `bun run dev:verify down` (data is kept for next time).

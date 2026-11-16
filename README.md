@@ -40,6 +40,35 @@ Open http://localhost:3000 and create an account.
 
 Only addresses in `SIGNUP_ALLOWED_EMAILS` can create an account. It's a comma-separated list of addresses (`me@example.com`) or whole domains (`@family.example`), compared case-insensitively. Anyone else sees "Sign-ups are closed". An empty or missing list closes sign-ups entirely, and accounts that already exist keep signing in whatever the list says.
 
+## Deploy (Vercel + Convex)
+
+The website runs on Vercel and the backend on a Convex production deployment. Every merge to `main` ships both from the same commit: Vercel's build runs `convex deploy`, which pushes the functions and then builds the site against that deployment.
+
+One-time setup:
+
+1. **Convex:** create a production deployment and set its settings (from `packages/backend`, with `--prod`):
+   ```sh
+   bunx convex env set --prod BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
+   bunx convex env set --prod SITE_URL https://bookmarks.example.com
+   bunx convex env set --prod MCP_CONSENT_URL https://bookmarks.example.com/connect
+   bunx convex env set --prod SIGNUP_ALLOWED_EMAILS you@example.com
+   ```
+   Then create a **production deploy key** in the Convex dashboard (Settings → Deploy keys).
+2. **Vercel:** import the repository with **Root Directory `apps/web`**. `apps/web/vercel.ts` sets the install and build commands and the `/connect` anti-framing headers. Add environment variables:
+   - Production: `CONVEX_DEPLOY_KEY` (the production key) and `VITE_SITE_URL` (your domain).
+   - Preview: either a Convex **preview deploy key** as `CONVEX_DEPLOY_KEY` (paid Convex plans; each PR gets its own backend), or `VITE_CONVEX_URL` and `VITE_CONVEX_SITE_URL` of your dev deployment, so previews show the site against dev data.
+3. **Domain (Cloudflare):** add the domain in Vercel, then in Cloudflare DNS create the record Vercel asks for (a `CNAME` to `cname.vercel-dns.com`, or an `A` record for the apex) with the proxy **off** (DNS only), so Vercel issues the HTTPS certificate.
+4. After the first deploy, run the smoke check:
+   ```sh
+   SMOKE_SITE_URL=https://bookmarks.example.com \
+   SMOKE_CONVEX_URL=https://<deployment>.convex.cloud \
+   SMOKE_MCP_URL=https://<deployment>.convex.site/mcp \
+   bun run smoke
+   ```
+   Add `SMOKE_MCP_KEY` (an API key from Settings) and `SMOKE_EMAIL`/`SMOKE_PASSWORD` for the signed-in checks.
+
+Existing deployments from before saved dates existed: run `bunx convex run migrations:backfillSavedAt` (with `--prod` for production) once. It's safe to run again.
+
 ## Browser extension
 
 `apps/extension` (WXT) builds Chrome, Firefox and Edge versions into `apps/extension/.output/`:

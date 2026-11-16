@@ -5,10 +5,13 @@
   },
   "entry": [
     "apps/web/vite.config.ts",
+    "apps/web/vercel.ts",
+    "apps/web/scripts/*.ts",
     "apps/web/src/sw/service-worker.ts",
     "apps/web/src/**/*.test.ts",
     "packages/backend/vitest.config.ts",
     "packages/dev-stack/src/cli.ts",
+    "packages/dev-stack/src/smoke.ts",
     "apps/extension/wxt.config.ts",
     "apps/extension/src/entrypoints/**/*.{ts,tsx}",
     "apps/extension/src/**/*.test.ts",

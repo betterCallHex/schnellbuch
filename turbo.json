@@ -8,6 +8,10 @@
     "VITE_CONVEX_SITE_URL",
     "VITE_SITE_URL",
     "WXT_SCHNELLBUCH_URL",
+    "VERCEL",
+    "VERCEL_ENV",
+    "VERCEL_URL",
+    "VERCEL_PROJECT_PRODUCTION_URL",
     "PORT"
   ],
   "tasks": {
