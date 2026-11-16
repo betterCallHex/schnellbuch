@@ -5,6 +5,7 @@
   "exports": {
     "./api": "./convex/_generated/api.js",
     "./data-model": "./convex/_generated/dataModel.d.ts",
+    "./netscape": "./convex/model/netscape.ts",
     "./search": "./convex/model/search.ts",
     "./tree": "./convex/model/tree.ts"
   },
