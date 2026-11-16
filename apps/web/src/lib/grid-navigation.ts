@@ -5,9 +5,12 @@ const STEP_BY_KEY: Record<string, "previous" | "next" | "up" | "down"> = {
   ArrowDown: "down",
 };
 
-export function isGridArrowKey(key: string) {
-  return key in STEP_BY_KEY;
-}
+export const GRID_ARROW_KEYS = [
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+] as const;
 
 export function nextGridIndex({
   current,

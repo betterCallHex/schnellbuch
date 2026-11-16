@@ -1,4 +1,3 @@
-import { api } from "@schnellbuch/backend/api";
 import type { Id } from "@schnellbuch/backend/data-model";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
@@ -10,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { errorMessage, succeeded } from "@/lib/errors";
 import { recallFolder, rememberFolder } from "@/lib/last-folder";
-import { useLibrary, useUpdateBookmark } from "@/lib/library";
-import { useOnlineMutation } from "@/lib/offline";
+import { useLibrary, useLibraryMutations } from "@/lib/library";
+import { isTempId } from "@/lib/offline-queue";
 
 export const Route = createFileRoute("/add")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -19,12 +18,20 @@ export const Route = createFileRoute("/add")({
     title: typeof search.title === "string" ? search.title : undefined,
   }),
   beforeLoad: ({ context, location }) => {
-    if (!context.token) {
+    if (!(context.token || context.offlineUserId)) {
       throw redirect({ to: "/sign-in", search: { redirect: location.href } });
     }
   },
   component: AddFromBookmarklet,
 });
+
+function AddFromBookmarklet() {
+  return (
+    <LibraryProvider>
+      <SaveFromBookmarklet />
+    </LibraryProvider>
+  );
+}
 
 type SaveState =
   | { status: "saving" }
@@ -37,9 +44,9 @@ type SaveState =
 
 const FOLDER_GONE = "Folder not found.";
 
-function AddFromBookmarklet() {
+function SaveFromBookmarklet() {
   const { url, title } = Route.useSearch();
-  const addBookmark = useOnlineMutation(api.bookmarks.add);
+  const { addBookmark } = useLibraryMutations();
   const [state, setState] = useState<SaveState>({ status: "saving" });
   const started = useRef(false);
 
@@ -94,13 +101,11 @@ function SaveStatus({ state, title }: { state: SaveState; title: string }) {
       );
     case "saved":
       return (
-        <LibraryProvider>
-          <SavedBookmark
-            bookmarkId={state.bookmarkId}
-            initialFolder={state.folderId}
-            title={title}
-          />
-        </LibraryProvider>
+        <SavedBookmark
+          bookmarkId={state.bookmarkId}
+          initialFolder={state.folderId}
+          title={title}
+        />
       );
     default:
       return state satisfies never;
@@ -117,7 +122,7 @@ function SavedBookmark({
   title: string;
 }) {
   const { flatFolders } = useLibrary();
-  const updateBookmark = useUpdateBookmark();
+  const { updateBookmark } = useLibraryMutations();
   const [folder, setFolder] = useState<string>(initialFolder ?? TOP_LEVEL);
 
   function moveTo(value: string) {
@@ -135,8 +140,13 @@ function SavedBookmark({
     <>
       <p className="flex items-center gap-2 text-sm font-medium">
         <CheckIcon aria-hidden className="size-4 text-green-600" />
-        Saved
+        {isTempId(bookmarkId) ? "Saved on this device" : "Saved"}
       </p>
+      {isTempId(bookmarkId) ? (
+        <p className="text-muted-foreground text-sm">
+          You're offline. It syncs when you're back online.
+        </p>
+      ) : null}
       <p className="text-muted-foreground truncate text-sm">{title}</p>
       <div className="flex flex-col gap-2">
         <Label htmlFor="add-folder">Folder</Label>

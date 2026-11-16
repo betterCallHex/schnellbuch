@@ -5,6 +5,8 @@ import {
   addBookmarkArgs,
   deleteBookmark,
   deleteBookmarkArgs,
+  duplicateBookmark,
+  duplicateBookmarkArgs,
   listBookmarks,
   updateBookmark,
   updateBookmarkArgs,
@@ -22,6 +24,10 @@ export const update = userMutation({
 export const remove = userMutation({
   args: deleteBookmarkArgs,
   handler: deleteBookmark,
+});
+export const duplicate = userMutation({
+  args: duplicateBookmarkArgs,
+  handler: duplicateBookmark,
 });
 
 // The whole library as a browser bookmarks file (Netscape HTML).

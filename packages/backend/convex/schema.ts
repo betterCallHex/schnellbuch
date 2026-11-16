@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { folderColor, folderMark } from "./model/style";
 
 // What reverses one change: put a bookmark or folder back where it was,
 // re-create a deleted bookmark, or remove one that was added.
@@ -31,6 +32,8 @@ export default defineSchema({
     userId: v.string(),
     name: v.string(),
     parentId: v.optional(v.id("folders")),
+    color: v.optional(folderColor),
+    mark: v.optional(folderMark),
   }).index("by_user_parent", ["userId", "parentId"]),
 
   bookmarks: defineTable({

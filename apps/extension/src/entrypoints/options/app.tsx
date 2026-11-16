@@ -1,4 +1,4 @@
-import { BookmarkPlusIcon } from "lucide-react";
+import { BookmarkPlusIcon, FolderInputIcon } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { browser } from "wxt/browser";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { normalizeServerUrl } from "@/lib/add-url";
+import { serverMatchPattern } from "@/lib/server-access";
 import { serverUrl } from "@/lib/settings";
 
 type Status = { kind: "idle" } | { kind: "saved" } | { kind: "invalid" };
@@ -20,9 +21,15 @@ export function App() {
   const [address, setAddress] = useState("");
   const [shortcut, setShortcut] = useState("Alt+Shift+S");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [savedAddress, setSavedAddress] = useState<string>();
+  const [canImport, setCanImport] = useState<boolean>();
 
   useEffect(() => {
-    serverUrl.getValue().then(setAddress);
+    serverUrl.getValue().then(async (current) => {
+      setAddress(current);
+      setSavedAddress(current);
+      setCanImport(await hasServerAccess(current));
+    });
     browser.commands.getAll().then((commands) => {
       const command = commands.find(({ name }) => name === "save-page");
       if (command?.shortcut) {
@@ -38,9 +45,18 @@ export function App() {
       setStatus({ kind: "invalid" });
       return;
     }
+    const access = requestServerAccess(cleaned);
     await serverUrl.setValue(cleaned);
     setAddress(cleaned);
+    setSavedAddress(cleaned);
     setStatus({ kind: "saved" });
+    setCanImport(await access);
+  }
+
+  async function allowImport() {
+    if (savedAddress) {
+      setCanImport(await requestServerAccess(savedAddress));
+    }
   }
 
   return (
@@ -104,6 +120,48 @@ export function App() {
           </ul>
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FolderInputIcon aria-hidden className="size-4" />
+            Import this browser's bookmarks
+          </CardTitle>
+          <CardDescription>
+            In SchnellBuch, open ⋯ → Import bookmarks… and pick this browser.
+            The extension reads your bookmarks and hands them to SchnellBuch,
+            and only to the address above.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center gap-3">
+          {canImport === false ? (
+            <>
+              <span className="text-muted-foreground text-sm">
+                Needs access to {savedAddress}.
+              </span>
+              <Button onClick={allowImport} variant="outline">
+                Allow access
+              </Button>
+            </>
+          ) : null}
+          {canImport ? (
+            <span className="text-muted-foreground text-sm" role="status">
+              Ready. Reload SchnellBuch's tab if it was already open.
+            </span>
+          ) : null}
+        </CardContent>
+      </Card>
     </main>
   );
+}
+
+function hasServerAccess(address: string) {
+  return browser.permissions.contains({
+    origins: [serverMatchPattern(address)],
+  });
+}
+
+function requestServerAccess(address: string) {
+  return browser.permissions
+    .request({ origins: [serverMatchPattern(address)] })
+    .catch(() => false);
 }

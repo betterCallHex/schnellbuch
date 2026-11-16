@@ -48,8 +48,6 @@ export const Route = createRootRouteWithContext<{
     const token = await readToken();
     return {
       token,
-      // Offline, the session can't be checked; the last user's mirrored
-      // library opens read-only instead.
       offlineUserId:
         token === null && isOffline() ? recallLastUser() : undefined,
     };

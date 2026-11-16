@@ -123,6 +123,40 @@ describe("import", () => {
     ]);
   });
 
+  it("the browser the import came from names its folder over what the file looks like", async () => {
+    const t = createTest();
+    const owner = t.withIdentity({ subject: "owner" });
+
+    const summary = await owner.action(api.imports.start, {
+      fileName: "Brave bookmarks",
+      html: chromeExport,
+      source: "Brave",
+    });
+
+    expect(summary).toMatchObject({ source: "Brave", imported: 3 });
+    expect(
+      (await libraryTree(t, "owner")).folders.map(({ name }) => name)
+    ).toEqual([`Imported from Brave ${DAY}`]);
+  });
+
+  it("a source outside the known browsers is refused before anything is written", async () => {
+    const t = createTest();
+    const owner = t.withIdentity({ subject: "owner" });
+
+    await expect(
+      owner.action(api.imports.start, {
+        fileName: "bookmarks.html",
+        html: chromeExport,
+        source: "Netscape Navigator" as "Chrome",
+      })
+    ).rejects.toThrow();
+
+    expect(await libraryTree(t, "owner")).toEqual({
+      folders: [],
+      bookmarks: [],
+    });
+  });
+
   it("a Firefox export skips place: queries and keeps descriptions out of titles", async () => {
     const t = createTest();
     const owner = t.withIdentity({ subject: "owner" });

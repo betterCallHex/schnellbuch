@@ -1,19 +1,14 @@
-import { api } from "@schnellbuch/backend/api";
 import type { Id } from "@schnellbuch/backend/data-model";
 import { searchBookmarks } from "@schnellbuch/backend/search";
+import { HotkeysProvider, useHotkey } from "@tanstack/react-hotkeys";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 
-import {
-  FolderIcon,
-  FolderPlusIcon,
-  HomeIcon,
-  PlusIcon,
-  SettingsIcon,
-} from "lucide-react";
-import { useEffect, useState } from "react";
+import { FolderPlusIcon, HomeIcon, PlusIcon, SettingsIcon } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { useOpenDialog } from "@/components/app-dialogs";
 import { Favicon } from "@/components/favicon";
+import { FolderGlyph } from "@/components/folder-glyph";
 import {
   Command,
   CommandDialog,
@@ -24,10 +19,10 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
-import { succeeded } from "@/lib/errors";
 import { useLibrary } from "@/lib/library";
+import { useLibraryEdits } from "@/lib/library-edits";
 import { looksLikeLink } from "@/lib/link";
-import { useOnlineMutation } from "@/lib/offline";
+import { SHORTCUTS } from "@/lib/shortcuts";
 import { displayHost } from "@/lib/views";
 
 const RESULT_LIMIT = 8;
@@ -36,16 +31,7 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
-  useEffect(() => {
-    function toggleOnShortcut(event: KeyboardEvent) {
-      if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        setOpen((wasOpen) => !wasOpen);
-      }
-    }
-    window.addEventListener("keydown", toggleOnShortcut);
-    return () => window.removeEventListener("keydown", toggleOnShortcut);
-  }, []);
+  useHotkey(SHORTCUTS.palette, () => setOpen(true));
 
   function changeOpen(next: boolean) {
     setOpen(next);
@@ -61,6 +47,11 @@ export function CommandPalette() {
       open={open}
       title="Search SchnellBuch"
     >
+      {open ? (
+        <HotkeysProvider exclusive scope="palette">
+          <ClosePaletteShortcut onClose={() => changeOpen(false)} />
+        </HotkeysProvider>
+      ) : null}
       <Command shouldFilter={false}>
         <CommandInput
           onValueChange={setQuery}
@@ -75,6 +66,11 @@ export function CommandPalette() {
   );
 }
 
+function ClosePaletteShortcut({ onClose }: { onClose: () => void }) {
+  useHotkey(SHORTCUTS.palette, onClose);
+  return null;
+}
+
 function PaletteResults({
   query,
   onDone,
@@ -85,7 +81,7 @@ function PaletteResults({
   const { bookmarks, flatFolders } = useLibrary();
   const navigate = useNavigate();
   const openDialog = useOpenDialog();
-  const addBookmark = useOnlineMutation(api.bookmarks.add);
+  const edits = useLibraryEdits();
   const { folder: activeFolder } = useSearch({ strict: false });
   const currentFolderId = activeFolder as Id<"folders"> | undefined;
   const needle = query.trim().toLowerCase();
@@ -99,9 +95,7 @@ function PaletteResults({
 
   async function saveLink() {
     onDone();
-    if (
-      await succeeded(addBookmark({ url: query, folderId: currentFolderId }))
-    ) {
+    if (await edits.addBookmark({ url: query, folderId: currentFolderId })) {
       toast.success("Bookmark saved");
     }
   }
@@ -156,7 +150,11 @@ function PaletteResults({
               }
               value={`folder-${folder._id}`}
             >
-              <FolderIcon />
+              <FolderGlyph
+                className="h-4 w-5 shrink-0"
+                color={folder.color}
+                mark={folder.mark}
+              />
               <span className="truncate">{folder.path}</span>
             </CommandItem>
           ))}

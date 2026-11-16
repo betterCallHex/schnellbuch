@@ -51,4 +51,35 @@ describe("bookmarks", () => {
 
     expect(bookmarks).toEqual([]);
   });
+
+  it("a copied bookmark keeps everything but its folder, including who chose the URL", async () => {
+    const t = createTest();
+    const owner = t.withIdentity({ subject: "owner" });
+    const dev = await owner.mutation(api.folders.create, { name: "Dev" });
+    const bookmarkId = await t.run((ctx) =>
+      ctx.db.insert("bookmarks", {
+        userId: "owner",
+        url: "https://bun.sh",
+        title: "Bun",
+        savedAt: 1000,
+        faviconUrl: "https://bun.sh/favicon.ico",
+        urlFromAgent: true,
+      })
+    );
+
+    const copyId = await owner.mutation(api.bookmarks.duplicate, {
+      bookmarkId,
+      folderId: dev,
+    });
+
+    const copy = await t.run((ctx) => ctx.db.get(copyId));
+    expect(copy).toMatchObject({
+      url: "https://bun.sh",
+      title: "Bun",
+      savedAt: 1000,
+      faviconUrl: "https://bun.sh/favicon.ico",
+      urlFromAgent: true,
+      folderId: dev,
+    });
+  });
 });

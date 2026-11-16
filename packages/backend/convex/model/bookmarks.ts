@@ -22,6 +22,11 @@ export const updateBookmarkArgs = {
 
 export const deleteBookmarkArgs = { bookmarkId: v.id("bookmarks") };
 
+export const duplicateBookmarkArgs = {
+  bookmarkId: v.id("bookmarks"),
+  folderId: v.optional(v.id("folders")),
+};
+
 export const MAX_TITLE_LENGTH = 1000;
 
 // Who chose the URL. The backend fetches pages the user saved (for the
@@ -122,6 +127,23 @@ export async function deleteBookmark(
 ) {
   await getOwnedBookmark(ctx, bookmarkId);
   await ctx.db.delete(bookmarkId);
+}
+
+export async function duplicateBookmark(
+  ctx: UserMutationCtx,
+  {
+    bookmarkId,
+    folderId,
+  }: { bookmarkId: Id<"bookmarks">; folderId?: Id<"folders"> }
+) {
+  const { _id, _creationTime, ...original } = await getOwnedBookmark(
+    ctx,
+    bookmarkId
+  );
+  if (folderId) {
+    await getOwnedFolder(ctx, folderId);
+  }
+  return await ctx.db.insert("bookmarks", { ...original, folderId });
 }
 
 async function getOwnedBookmark(

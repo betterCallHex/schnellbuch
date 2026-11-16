@@ -6,12 +6,13 @@ Fast, open-source bookmarks that work in every browser, and that your AI agents 
 - **Drag and drop** onto folders, or onto the path bar to move things up.
 - **⌘V** with a link copied saves it into the folder you're looking at.
 - **⌘K** searches every bookmark and folder as you type (fuzzy: `cnvx hub` finds "Convex Developer Hub"). Paste a link into it to save it.
-- **Browser extension** for Chrome, Firefox and Edge: the toolbar button or Alt+Shift+S saves the current tab, and right-clicking a link saves it. The save popup remembers the folder you used last.
+- **Browser extension** for Chrome, Firefox and Edge (and other Chromium browsers): the toolbar button or Alt+Shift+S saves the current tab, and right-clicking a link saves it. The save popup remembers the folder you used last. It also hands the browser's bookmarks to SchnellBuch for a one-click import.
 - **Bookmarklet** saves the page you're on from any browser, no extension needed.
-- **Import and export**: bring in the bookmarks file Chrome, Firefox, Safari or Edge exports (folders, titles and dates kept, links you already have skipped), and download your whole library in the same format as a backup.
+- **Import and export**: pick the browser your bookmarks are in. With the extension installed in that browser they import in one click; otherwise SchnellBuch shows that browser's export steps and takes the exported file (Safari always goes this way). Folders, titles and dates are kept and links you already have are skipped. Export downloads your whole library as a bookmarks file, as a backup.
 - **MCP server** so Claude, Cursor or any MCP client can list, search, add, move and delete your bookmarks.
 - Live everywhere: a change from an agent or another tab shows up immediately.
-- **Installable, and readable offline**: install it from the browser (or "Add to Home Screen") and it opens in its own window. Without a network you can still browse and search (⌘K) the library you last loaded; saving, moving and deleting pause until you're back. Signing out removes that copy from the device.
+- **Installable, and works offline**: install it from the browser (or "Add to Home Screen") and it opens in its own window. Without a network you can still browse and search (⌘K) the library you last loaded, and add, edit, move, copy and delete bookmarks and folders. Those changes are kept on the device (IndexedDB), marked "Waiting to sync", and sent in order once you're back online, even after a reload. Signing out removes the copy and any unsynced changes from the device.
+- **Finder-style Edit menu**: the toolbar's Edit menu names what ⌘Z and ⇧⌘Z would undo or redo ("Undo Move “Docs”"), and cuts, copies and pastes the selected item.
 
 ## Stack
 
@@ -76,6 +77,8 @@ WXT_SCHNELLBUCH_URL=https://your-schnellbuch.example bun run --cwd apps/extensio
 ```
 
 Load `.output/chrome-mv3` (or `edge-mv3`) as an unpacked extension, or `.output/firefox-mv2` as a temporary add-on in Firefox. `WXT_SCHNELLBUCH_URL` is the default address; anyone can change it on the extension's options page. Every way of saving opens SchnellBuch's `/add` popup, so sign-in and folders work exactly as they do with the bookmarklet.
+
+To import this browser's bookmarks, open SchnellBuch in it, choose ⋯ → Import bookmarks… and pick the browser. The extension reads the bookmarks (the `bookmarks` permission) and passes them only to the SchnellBuch address on its options page; the web app imports them as one new folder. The default address's host is allowed at install; saving another address on the options page asks for access to that host. Reload SchnellBuch's tab after installing the extension or changing the address.
 
 ## Connect an agent
 

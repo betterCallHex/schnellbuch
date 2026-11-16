@@ -26,12 +26,18 @@ Use a named agent-browser session. Sign in on `/sign-in` as Ada or Bob with the 
 
 - The top level shows folders, then bookmarks, as a grid. Click selects, double-click (or ↵) opens, ⌘↑ goes up, Back/Forward in the toolbar follow history.
 - Paste a link into ⌘K → "Save …", or dispatch a `paste` event on the page with a link: it saves into the open folder and the title arrives within a few seconds.
-- Right-click a tile for Open / Edit / Move to / Copy link / Delete. ⌘⌫ deletes the selection; the toast's Undo restores a bookmark.
+- Right-click a tile for Open / Edit / Move to / Cut / Copy / Delete, and Customize… on a folder (colour plus a symbol or emoji, shown in the grid, the path bar and ⌘K). ⌘⌫ deletes the selection; the toast's Undo restores it.
+- The toolbar's Edit menu (the ↶ button) names the next undo and redo ("Undo Delete “MDN Web Docs”") and cuts, copies and pastes the selected tile.
+- Shortcuts (TanStack Hotkeys; `agent-browser press Meta+z` and friends): ⌘Z / ⌘⇧Z undo and redo this tab's moves, renames, edits, deletes, adds, pastes and customizations. ⌘X dims the selected tile and ⌘C copies it, each with a toast; ⌘V in another folder moves or copies it there. Headless Chromium doesn't paste on ⌘V, so dispatch a `paste` event whose text is exactly what was copied (the bookmark's stored URL, or the folder's name). Shortcuts pause while a dialog is open.
 - Drag a tile onto a folder tile, or onto a crumb in the path bar to move it up. Use `agent-browser mouse down/move/up` with `--steps`; `agent-browser drag` is too fast for dnd-kit.
 - Bookmarklet: open `/add?url=<encoded>&title=<encoded>` at 420×320.
-- Import and export: ⋯ → Export bookmarks downloads `schnellbuch-YYYY-MM-DD.html`; ⋯ → Import bookmarks… with a browser export (fixtures in `packages/backend/testing/fixtures`) shows progress in Settings and lands in one "Imported from …" folder.
+- Import and export: ⋯ → Export bookmarks downloads `schnellbuch-YYYY-MM-DD.html`; ⋯ → Import bookmarks… opens the browser picker; pick one without the extension and drop or choose a browser export (fixtures in `packages/backend/testing/fixtures`, `agent-browser upload 'input[type=file]' <file>`). It shows progress in Settings and lands in one "Imported from …" folder.
 - Settings → Recent agent changes lists bulk changes an agent made, each with Undo.
 - Phone width: `agent-browser set device "iPhone 14"`; a tap opens a tile.
+
+## Offline edits in dev
+
+Without a production build: `window.dispatchEvent(new Event("offline"))` puts the page offline, so edits queue in IndexedDB (`offline-queue` store); reloading brings it back online and the queue syncs from storage. For a real disconnect, kill the stack's backend (`pids.backend` in `state.json`), edit, then `bun run dev:verify` to restart it: the queue syncs without a reload.
 
 ## Offline and install
 
@@ -42,20 +48,21 @@ The service worker only exists in a production build, and the server must run on
 3. In Playwright (`chromium.launch()`), sign in as Ada and wait for `navigator.serviceWorker.ready`, then reload once so the worker caches the page. Wait a second for the mirror write.
 4. Check:
    - `Page.getInstallabilityErrors` over CDP returns `[]`.
-   - `ctx.setOffline(true)`: the banner says "You're offline", New (+) is disabled, and a pasted link gets the offline toast.
+   - `ctx.setOffline(true)`: the banner says "You're offline". Add a folder, paste a link into it, delete a bookmark: each shows at once, marked "Waiting to sync", and the banner counts them.
    - Reload while offline: the grid comes back from the mirror, with "Showing your bookmarks as of …". Open a folder, and ⌘K finds bookmarks.
-   - Add a bookmark over MCP while the page is offline, then `ctx.setOffline(false)`: it appears with no navigation.
-   - Sign out: the `schnellbuch` IndexedDB entry, the `schnellbuch-pages` cache and `localStorage["schnellbuch:last-user"]` are gone.
+   - Add a bookmark over MCP while the page is offline, then `ctx.setOffline(false)`: it appears with no navigation, and the queued changes sync in order ("Synced N changes made offline").
+   - Sign out: with changes still waiting, a toast asks first. Then the `schnellbuch` IndexedDB entry (mirror, `offline-queue`, `synced-ids`), the `schnellbuch-pages` cache and `localStorage["schnellbuch:last-user"]` are gone.
 
 ## Browser extension
 
-1. Build it for this stack: `source <stack>/env.sh && WXT_SCHNELLBUCH_URL=$SCHNELLBUCH_WEB_URL bunx --cwd apps/extension wxt build -b chrome`.
+1. Build it for this stack: `source <stack>/env.sh && cd apps/extension && WXT_SCHNELLBUCH_URL=$SCHNELLBUCH_WEB_URL bunx wxt build -b chrome`.
 2. Load `apps/extension/.output/chrome-mv3` in Playwright's Chromium: `chromium.launchPersistentContext("", { channel: "chromium", args: ["--disable-extensions-except=<dir>", "--load-extension=<dir>"] })`. Headless works.
 3. Toolbar clicks, shortcuts and context menus are browser UI that automation can't press, so fire the extension's own listeners from its service worker with the arguments Chrome passes (`ctx.serviceWorkers()[0].evaluate(...)`):
    - toolbar: `chrome.action.onClicked.dispatch({ id: 1, url, title })`
    - shortcut: `chrome.commands.onCommand.dispatch("save-page", { id: 1, url, title })`
    - link menu: `chrome.contextMenus.onClicked.dispatch({ menuItemId: "save-link", linkUrl, pageUrl, editable: false }, tab)`
 4. Each opens the `/add` popup in a new page. Signed out, it goes through `/sign-in` (wait for `networkidle` before typing) and then saves the original page. Pick a folder; the next save preselects it. A `chrome://` page sets the badge to "×" instead. The options page is `chrome-extension://<id>/options.html`.
+5. Browser import: agent-browser loads it too (`agent-browser --session <name> --extension <dir> open <app>`). On the app, `postMessage({channel:"schnellbuch:page",type:"hello"}, location.origin)` gets a `schnellbuch:extension` `ready` reply. Add bookmarks with `chrome.bookmarks.create` from the options page (the unpacked ID is the first 32 hex of the directory path's SHA-256, mapped 0-f → a-p), then ⋯ → Import bookmarks… → Chrome → Import from Chrome lands them in "Imported from Chrome …".
 
 ## MCP endpoint
 

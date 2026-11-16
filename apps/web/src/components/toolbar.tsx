@@ -18,8 +18,11 @@ import {
   SettingsIcon,
   UploadIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+import { toast } from "sonner";
 import { useOpenDialog } from "@/components/app-dialogs";
+import { EditMenu } from "@/components/edit-menu";
+import { ImportDialog } from "@/components/import-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -31,9 +34,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
 import { tokenSubject } from "@/lib/mirror";
-import { clearOfflineData, OFFLINE_MESSAGE, useOffline } from "@/lib/offline";
+import { clearOfflineData, useOffline } from "@/lib/offline";
+import { discardQueue, queuedEditCount } from "@/lib/offline-queue-store";
 import { useExportLibrary } from "@/lib/use-export";
-import { useImportBookmarks } from "@/lib/use-import";
 
 export function Toolbar({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -62,6 +65,7 @@ export function Toolbar({ children }: { children: ReactNode }) {
         </Button>
       </div>
       <div className="min-w-0 flex-1">{children}</div>
+      <EditMenu />
       <NewMenu />
       <Button
         aria-label="Search"
@@ -85,7 +89,6 @@ function openPalette() {
 
 function NewMenu() {
   const openDialog = useOpenDialog();
-  const offline = useOffline();
   const { folder } = useSearch({ strict: false });
   const folderId = folder as Id<"folders"> | undefined;
   return (
@@ -95,9 +98,7 @@ function NewMenu() {
           <Button
             aria-label="New"
             className="rounded-full"
-            disabled={offline}
             size="icon"
-            title={offline ? OFFLINE_MESSAGE : undefined}
             variant="outline"
           />
         }
@@ -130,14 +131,35 @@ function NewMenu() {
 function MoreMenu() {
   const navigate = useNavigate();
   const exportLibrary = useExportLibrary();
-  const importBookmarks = useImportBookmarks();
+  const [importing, setImporting] = useState(false);
   const offline = useOffline();
   const { token, offlineUserId } = useRouteContext({ from: "__root__" });
 
+  const userId = tokenSubject(token) ?? offlineUserId;
+
   async function signOut() {
-    await clearOfflineData(tokenSubject(token) ?? offlineUserId);
+    if (userId) {
+      await Promise.all([clearOfflineData(userId), discardQueue(userId)]);
+    }
     await authClient.signOut();
     window.location.assign("/sign-in");
+  }
+
+  function confirmSignOut() {
+    const waiting = queuedEditCount();
+    if (waiting === 0) {
+      return signOut();
+    }
+    toast.error(
+      waiting === 1
+        ? "1 change hasn't synced yet"
+        : `${waiting} changes haven't synced yet`,
+      {
+        description:
+          "They sync once you're back online. Signing out now discards them.",
+        action: { label: "Sign out anyway", onClick: signOut },
+      }
+    );
   }
 
   return (
@@ -155,7 +177,7 @@ function MoreMenu() {
         <EllipsisIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuItem disabled={offline} onClick={importBookmarks}>
+        <DropdownMenuItem disabled={offline} onClick={() => setImporting(true)}>
           <UploadIcon />
           Import bookmarks…
         </DropdownMenuItem>
@@ -168,11 +190,12 @@ function MoreMenu() {
           <SettingsIcon />
           Settings
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={signOut}>
+        <DropdownMenuItem onClick={confirmSignOut}>
           <LogOutIcon />
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
+      <ImportDialog onOpenChange={setImporting} open={importing} />
     </DropdownMenu>
   );
 }

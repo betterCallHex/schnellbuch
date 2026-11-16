@@ -5,8 +5,11 @@
   "exports": {
     "./api": "./convex/_generated/api.js",
     "./data-model": "./convex/_generated/dataModel.d.ts",
+    "./folder-style": "./convex/model/style.ts",
+    "./netscape": "./convex/model/netscape.ts",
     "./search": "./convex/model/search.ts",
-    "./tree": "./convex/model/tree.ts"
+    "./tree": "./convex/model/tree.ts",
+    "./url": "./convex/model/url.ts"
   },
   "scripts": {
     "deploy": "cd ../.. && convex deploy",

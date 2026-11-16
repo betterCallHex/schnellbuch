@@ -1,19 +1,37 @@
 import { ConvexError, v } from "convex/values";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { UserMutationCtx, UserQueryCtx } from "../functions";
+import {
+  cleanFolderMark,
+  type FolderColor,
+  type FolderMark,
+  folderColor,
+  folderMark,
+} from "./style";
 
 export const createFolderArgs = {
   name: v.string(),
   parentId: v.optional(v.id("folders")),
+  color: v.optional(folderColor),
+  mark: v.optional(folderMark),
 };
 
 export const updateFolderArgs = {
   folderId: v.id("folders"),
   name: v.optional(v.string()),
   parentId: v.optional(v.union(v.id("folders"), v.null())),
+  color: v.optional(v.union(folderColor, v.null())),
+  mark: v.optional(v.union(folderMark, v.null())),
 };
 
 export const deleteFolderArgs = { folderId: v.id("folders") };
+
+export const duplicateFolderArgs = {
+  folderId: v.id("folders"),
+  parentId: v.optional(v.id("folders")),
+};
+
+const MAX_ITEMS_COPIED = 4000;
 
 export function listFolders(ctx: UserQueryCtx) {
   return ctx.db
@@ -24,7 +42,17 @@ export function listFolders(ctx: UserQueryCtx) {
 
 export async function createFolder(
   ctx: UserMutationCtx,
-  { name, parentId }: { name: string; parentId?: Id<"folders"> }
+  {
+    name,
+    parentId,
+    color,
+    mark,
+  }: {
+    name: string;
+    parentId?: Id<"folders">;
+    color?: FolderColor;
+    mark?: FolderMark;
+  }
 ) {
   if (parentId) {
     await getOwnedFolder(ctx, parentId);
@@ -33,6 +61,8 @@ export async function createFolder(
     userId: ctx.userId,
     name: cleanFolderName(name),
     parentId,
+    color,
+    mark: mark && cleanFolderMark(mark),
   });
 }
 
@@ -42,12 +72,24 @@ export async function updateFolder(
     folderId,
     name,
     parentId,
-  }: { folderId: Id<"folders">; name?: string; parentId?: Id<"folders"> | null }
+    color,
+    mark,
+  }: {
+    folderId: Id<"folders">;
+    name?: string;
+    parentId?: Id<"folders"> | null;
+    color?: FolderColor | null;
+    mark?: FolderMark | null;
+  }
 ) {
   await getOwnedFolder(ctx, folderId);
-  if (name !== undefined) {
-    await ctx.db.patch(folderId, { name: cleanFolderName(name) });
-  }
+  await ctx.db.patch(folderId, {
+    ...(name === undefined ? {} : { name: cleanFolderName(name) }),
+    ...(color === undefined ? {} : { color: color ?? undefined }),
+    ...(mark === undefined
+      ? {}
+      : { mark: mark === null ? undefined : cleanFolderMark(mark) }),
+  });
   if (parentId !== undefined) {
     await moveFolder(ctx, folderId, parentId ?? undefined);
   }
@@ -79,6 +121,41 @@ export async function deleteFolder(
     ),
   ]);
   await ctx.db.delete(folderId);
+}
+
+export async function duplicateFolder(
+  ctx: UserMutationCtx,
+  { folderId, parentId }: { folderId: Id<"folders">; parentId?: Id<"folders"> }
+) {
+  const original = await getOwnedFolder(ctx, folderId);
+  if (parentId) {
+    await getOwnedFolder(ctx, parentId);
+    await assertOutsideFolder(ctx, parentId, folderId);
+  }
+  const subtree = await collectSubtree(ctx, original);
+  if (subtree.folders.length + subtree.bookmarks.length > MAX_ITEMS_COPIED) {
+    throw new ConvexError(
+      `That folder holds more than ${MAX_ITEMS_COPIED} items, too many to copy at once.`
+    );
+  }
+  return await copyFolderInto(ctx, original, {
+    parentId,
+    name: copyName(original, parentId),
+  });
+}
+
+export async function deleteFolderWithContents(
+  ctx: UserMutationCtx,
+  { folderId }: { folderId: Id<"folders"> }
+) {
+  const subtree = await collectSubtree(
+    ctx,
+    await getOwnedFolder(ctx, folderId)
+  );
+  await Promise.all([
+    ...subtree.bookmarks.map((bookmark) => ctx.db.delete(bookmark._id)),
+    ...subtree.folders.map((folder) => ctx.db.delete(folder._id)),
+  ]);
 }
 
 export async function getOwnedFolder(
@@ -134,4 +211,71 @@ function cleanFolderName(name: string) {
     );
   }
   return trimmed;
+}
+
+function copyName(
+  original: Doc<"folders">,
+  parentId: Id<"folders"> | undefined
+) {
+  return original.parentId === parentId
+    ? cleanFolderName(`${original.name} copy`)
+    : original.name;
+}
+
+async function copyFolderInto(
+  ctx: UserMutationCtx,
+  folder: Doc<"folders">,
+  placement: { parentId: Id<"folders"> | undefined; name: string }
+): Promise<Id<"folders">> {
+  const copyId = await ctx.db.insert("folders", {
+    userId: ctx.userId,
+    name: placement.name,
+    parentId: placement.parentId,
+    color: folder.color,
+    mark: folder.mark,
+  });
+  const contents = await folderContents(ctx, folder._id);
+  await Promise.all([
+    ...contents.bookmarks.map(({ _id, _creationTime, ...bookmark }) =>
+      ctx.db.insert("bookmarks", { ...bookmark, folderId: copyId })
+    ),
+    ...contents.folders.map((child) =>
+      copyFolderInto(ctx, child, { parentId: copyId, name: child.name })
+    ),
+  ]);
+  return copyId;
+}
+
+async function collectSubtree(ctx: UserQueryCtx, root: Doc<"folders">) {
+  const folders: Doc<"folders">[] = [];
+  const bookmarks: Doc<"bookmarks">[] = [];
+  let level = [root];
+  while (level.length > 0) {
+    folders.push(...level);
+    // biome-ignore lint/performance/noAwaitInLoops: each level is found from the one above it
+    const contents = await Promise.all(
+      level.map((folder) => folderContents(ctx, folder._id))
+    );
+    level = contents.flatMap((content) => content.folders);
+    bookmarks.push(...contents.flatMap((content) => content.bookmarks));
+  }
+  return { folders, bookmarks };
+}
+
+async function folderContents(ctx: UserQueryCtx, folderId: Id<"folders">) {
+  const [folders, bookmarks] = await Promise.all([
+    ctx.db
+      .query("folders")
+      .withIndex("by_user_parent", (q) =>
+        q.eq("userId", ctx.userId).eq("parentId", folderId)
+      )
+      .collect(),
+    ctx.db
+      .query("bookmarks")
+      .withIndex("by_user_folder", (q) =>
+        q.eq("userId", ctx.userId).eq("folderId", folderId)
+      )
+      .collect(),
+  ]);
+  return { folders, bookmarks };
 }

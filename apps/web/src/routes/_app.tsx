@@ -6,8 +6,9 @@ import { CommandPalette } from "@/components/command-palette";
 import { LibraryProvider } from "@/components/library-provider";
 import { OfflineBanner } from "@/components/offline-banner";
 import { type DragItem, type DropTarget, dragSensors } from "@/lib/drag";
-import { succeeded } from "@/lib/errors";
-import { useUpdateBookmark, useUpdateFolder } from "@/lib/library";
+import { useLibrary } from "@/lib/library";
+import { useLibraryEdits } from "@/lib/library-edits";
+import { useEditHistoryShortcuts } from "@/lib/shortcuts";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: ({ context, location }) => {
@@ -27,8 +28,9 @@ function AppLayout() {
 }
 
 function AppShell() {
-  const updateBookmark = useUpdateBookmark();
-  const updateFolder = useUpdateFolder();
+  const edits = useLibraryEdits();
+  const { bookmarks, flatFolders } = useLibrary();
+  useEditHistoryShortcuts();
 
   function fileDroppedItem({ canceled, operation }: DragEndEvent) {
     const item = operation.source?.data as DragItem | undefined;
@@ -37,12 +39,11 @@ function AppShell() {
       return;
     }
     if (item.kind === "bookmark") {
-      succeeded(
-        updateBookmark({ bookmarkId: item.id, folderId: target.folderId })
-      );
-    } else if (item.id !== target.folderId) {
-      succeeded(updateFolder({ folderId: item.id, parentId: target.folderId }));
+      const bookmark = bookmarks.find((entry) => entry._id === item.id);
+      return bookmark && edits.moveBookmark(bookmark, target.folderId);
     }
+    const folder = flatFolders.find((entry) => entry._id === item.id);
+    return folder && edits.moveFolder(folder, target.folderId);
   }
 
   return (

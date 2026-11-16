@@ -1,39 +1,14 @@
+import { inStore, STORES } from "@/lib/device-db";
+
 // IndexedDB storage for the offline mirror, one entry per user. Every call
 // fails soft: without storage the app simply has nothing to show offline.
-const DATABASE = "schnellbuch";
-const STORE = "mirrors";
 const LAST_USER_KEY = "schnellbuch:last-user";
-
-function openDatabase() {
-  return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DATABASE, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function run<T>(
-  mode: IDBTransactionMode,
-  work: (store: IDBObjectStore) => IDBRequest<T>
-) {
-  const database = await openDatabase();
-  try {
-    return await new Promise<T>((resolve, reject) => {
-      const request = work(
-        database.transaction(STORE, mode).objectStore(STORE)
-      );
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  } finally {
-    database.close();
-  }
-}
 
 export async function loadMirror(userId: string): Promise<unknown> {
   try {
-    return await run("readonly", (store) => store.get(userId));
+    return await inStore(STORES.mirrors, "readonly", (store) =>
+      store.get(userId)
+    );
   } catch {
     // Storage blocked or empty: nothing to show offline.
   }
@@ -41,7 +16,9 @@ export async function loadMirror(userId: string): Promise<unknown> {
 
 export async function saveMirror(userId: string, mirror: unknown) {
   try {
-    await run("readwrite", (store) => store.put(mirror, userId));
+    await inStore(STORES.mirrors, "readwrite", (store) =>
+      store.put(mirror, userId)
+    );
   } catch {
     // Storage full or blocked: offline browsing just won't have this copy.
   }
@@ -49,7 +26,7 @@ export async function saveMirror(userId: string, mirror: unknown) {
 
 export async function deleteMirror(userId: string) {
   try {
-    await run("readwrite", (store) => store.delete(userId));
+    await inStore(STORES.mirrors, "readwrite", (store) => store.delete(userId));
   } catch {
     // Nothing stored, or storage blocked.
   }

@@ -22,13 +22,20 @@ export interface FileFolder {
 
 export type FileNode = FileBookmark | FileFolder;
 
-export type BookmarkFileSource =
-  | "Chrome"
-  | "Edge"
-  | "Firefox"
-  | "Safari"
-  | "SchnellBuch"
-  | "a browser";
+export const BOOKMARK_FILE_SOURCES = [
+  "Chrome",
+  "Edge",
+  "Firefox",
+  "Safari",
+  "Brave",
+  "Arc",
+  "Opera",
+  "Vivaldi",
+  "SchnellBuch",
+  "a browser",
+] as const;
+
+export type BookmarkFileSource = (typeof BOOKMARK_FILE_SOURCES)[number];
 
 // A ConvexError, so the message reaches the person who picked the file.
 class NotABookmarkFileError extends ConvexError<string> {

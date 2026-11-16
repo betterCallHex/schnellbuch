@@ -1,6 +1,5 @@
 import type { Id } from "@schnellbuch/backend/data-model";
 import { flattenFolderTree } from "@schnellbuch/backend/tree";
-import { toast } from "sonner";
 import { useOpenDialog } from "@/components/app-dialogs";
 import {
   ContextMenuContent,
@@ -11,15 +10,14 @@ import {
   ContextMenuSubContent,
   ContextMenuSubTrigger,
 } from "@/components/ui/context-menu";
-import { succeeded } from "@/lib/errors";
 import {
   type BookmarkEntry,
   type FolderEntry,
-  useDeleteBookmark,
   useLibrary,
-  useUpdateBookmark,
-  useUpdateFolder,
 } from "@/lib/library";
+import { useLibraryEdits } from "@/lib/library-edits";
+import type { LibraryItem } from "@/lib/selection";
+import { putOnClipboard, SHORTCUTS, shortcutLabel } from "@/lib/shortcuts";
 
 export function BookmarkMenu({
   bookmark,
@@ -29,13 +27,7 @@ export function BookmarkMenu({
   onOpen: () => void;
 }) {
   const openDialog = useOpenDialog();
-  const updateBookmark = useUpdateBookmark();
-  const deleteBookmark = useDeleteBookmark();
-
-  async function copyLink() {
-    await navigator.clipboard.writeText(bookmark.url);
-    toast.success("Link copied");
-  }
+  const edits = useLibraryEdits();
 
   return (
     <ContextMenuContent className="w-52">
@@ -50,14 +42,11 @@ export function BookmarkMenu({
       </ContextMenuItem>
       <MoveToMenu
         currentFolderId={bookmark.folderId}
-        onMove={(folderId) =>
-          succeeded(updateBookmark({ bookmarkId: bookmark._id, folderId }))
-        }
+        onMove={(folderId) => edits.moveBookmark(bookmark, folderId)}
       />
-      <ContextMenuItem onClick={copyLink}>Copy link</ContextMenuItem>
-      <ContextMenuSeparator />
+      <ClipboardItems item={{ kind: "bookmark", bookmark }} />
       <ContextMenuItem
-        onClick={() => deleteBookmark(bookmark)}
+        onClick={() => edits.deleteBookmark(bookmark)}
         variant="destructive"
       >
         Delete
@@ -75,7 +64,7 @@ export function FolderMenu({
   onOpen: () => void;
 }) {
   const openDialog = useOpenDialog();
-  const updateFolder = useUpdateFolder();
+  const edits = useLibraryEdits();
   const blockedIds = new Set(
     flattenFolderTree([folder]).map((entry) => entry._id)
   );
@@ -96,14 +85,17 @@ export function FolderMenu({
       >
         Rename…
       </ContextMenuItem>
+      <ContextMenuItem
+        onClick={() => openDialog({ kind: "customize-folder", folder })}
+      >
+        Customize…
+      </ContextMenuItem>
       <MoveToMenu
         blockedIds={blockedIds}
         currentFolderId={folder.parentId}
-        onMove={(parentId) =>
-          succeeded(updateFolder({ folderId: folder._id, parentId }))
-        }
+        onMove={(parentId) => edits.moveFolder(folder, parentId)}
       />
-      <ContextMenuSeparator />
+      <ClipboardItems item={{ kind: "folder", folder }} />
       <ContextMenuItem
         onClick={() => openDialog({ kind: "delete-folder", folder })}
         variant="destructive"
@@ -112,6 +104,27 @@ export function FolderMenu({
         <ContextMenuShortcut>⌘⌫</ContextMenuShortcut>
       </ContextMenuItem>
     </ContextMenuContent>
+  );
+}
+
+function ClipboardItems({ item }: { item: LibraryItem }) {
+  return (
+    <>
+      <ContextMenuSeparator />
+      <ContextMenuItem onClick={() => putOnClipboard(item, "cut")}>
+        Cut
+        <ContextMenuShortcut>
+          {shortcutLabel(SHORTCUTS.cut)}
+        </ContextMenuShortcut>
+      </ContextMenuItem>
+      <ContextMenuItem onClick={() => putOnClipboard(item, "copy")}>
+        Copy
+        <ContextMenuShortcut>
+          {shortcutLabel(SHORTCUTS.copy)}
+        </ContextMenuShortcut>
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+    </>
   );
 }
 

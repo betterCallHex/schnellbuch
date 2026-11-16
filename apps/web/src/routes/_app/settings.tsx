@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
+import { ImportDialog } from "@/components/import-dialog";
 import { Toolbar } from "@/components/toolbar";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +34,6 @@ import {
   useSignedInQuery,
 } from "@/lib/offline";
 import { useExportLibrary } from "@/lib/use-export";
-import { useImportBookmarks } from "@/lib/use-import";
 
 export const Route = createFileRoute("/_app/settings")({ component: Settings });
 
@@ -267,7 +267,7 @@ function Bookmarklet() {
 
 function ImportExport() {
   const exportLibrary = useExportLibrary();
-  const importBookmarks = useImportBookmarks();
+  const [importing, setImporting] = useState(false);
   return (
     <Card>
       <CardHeader>
@@ -276,14 +276,15 @@ function ImportExport() {
           Import and export
         </CardTitle>
         <CardDescription>
-          Bring in the bookmarks file Chrome, Firefox, Safari or Edge exports.
-          It lands in one new folder, skipping links you already have. Export
-          downloads everything in the same format, so it doubles as a backup.
+          Bring in the bookmarks of Chrome, Safari, Firefox, Edge or any other
+          browser. They land in one new folder, skipping links you already have.
+          Export downloads everything as a bookmarks file, so it doubles as a
+          backup.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap gap-2">
-          <Button onClick={importBookmarks} variant="outline">
+          <Button onClick={() => setImporting(true)} variant="outline">
             <UploadIcon />
             Import bookmarks…
           </Button>
@@ -293,6 +294,7 @@ function ImportExport() {
           </Button>
         </div>
         <LatestImport />
+        <ImportDialog onOpenChange={setImporting} open={importing} />
       </CardContent>
     </Card>
   );

@@ -18,8 +18,8 @@ import { env } from "@/env";
 import { deleteMirror, rememberLastUser } from "@/lib/mirror-store";
 import { PAGES_CACHE } from "@/lib/pages-cache";
 
-export const OFFLINE_MESSAGE =
-  "You're offline. Saving, moving and deleting are paused until you're back online.";
+const OFFLINE_MESSAGE =
+  "You're offline. This needs a connection, so try again once you're back online.";
 // A connection that's down (or not up yet) this long counts as offline, so
 // a blip or a slow start doesn't flash the banner.
 const DISCONNECTED_GRACE_MS = 4000;
