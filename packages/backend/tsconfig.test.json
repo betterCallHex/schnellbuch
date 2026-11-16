@@ -4,5 +4,5 @@
     "lib": ["ES2024", "DOM"],
     "types": ["node", "vite/client"]
   },
-  "include": ["convex/**/*.test.ts", "testing", "vitest.config.ts"]
+  "include": ["convex/**/*.test.ts", "scripts", "testing", "vitest.config.ts"]
 }

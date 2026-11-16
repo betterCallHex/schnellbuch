@@ -10,6 +10,7 @@
     "apps/web/src/sw/service-worker.ts",
     "apps/web/src/**/*.test.ts",
     "packages/backend/vitest.config.ts",
+    "packages/backend/scripts/*.ts",
     "packages/dev-stack/src/cli.ts",
     "packages/dev-stack/src/smoke.ts",
     "apps/extension/wxt.config.ts",

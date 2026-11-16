@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import babel from "@rolldown/plugin-babel";
 import { createEnv } from "@t3-oss/env-core";
 import tailwindcss from "@tailwindcss/vite";
@@ -10,9 +11,9 @@ import * as z from "zod";
 import { convexSiteUrl, siteUrl } from "./src/lib/site-urls";
 
 const DEFAULT_PORT = 3000;
+const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 
 export default defineConfig(({ mode }) => {
-  const convexDevEnv = loadEnv(mode, "../../packages/backend", "CONVEX_");
   const buildEnv = createEnv({
     server: {
       PORT: z.coerce.number().int().default(DEFAULT_PORT),
@@ -27,11 +28,7 @@ export default defineConfig(({ mode }) => {
       VERCEL_PROJECT_PRODUCTION_URL: z.string().optional(),
       VERCEL_URL: z.string().optional(),
     },
-    runtimeEnv: {
-      VITE_CONVEX_URL: convexDevEnv.CONVEX_URL,
-      VITE_CONVEX_SITE_URL: convexDevEnv.CONVEX_SITE_URL,
-      ...process.env,
-    },
+    runtimeEnv: { ...loadEnv(mode, repoRoot, ""), ...process.env },
     emptyStringAsUndefined: true,
   });
   Object.assign(process.env, {
@@ -54,6 +51,7 @@ export default defineConfig(({ mode }) => {
     : ".output/public";
 
   return {
+    envDir: repoRoot,
     server: { port: buildEnv.PORT, strictPort: true },
     resolve: { tsconfigPaths: true },
     ssr: { noExternal: ["@convex-dev/better-auth"] },

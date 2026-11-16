@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { reactCompilerPreset } from "@vitejs/plugin-react";
@@ -13,6 +14,7 @@ export default defineConfig({
   // A function, so every build step (one per entrypoint group) gets fresh
   // plugin instances. Same Tailwind and React Compiler setup as apps/web.
   vite: () => ({
+    envDir: fileURLToPath(new URL("../..", import.meta.url)),
     plugins: [tailwindcss(), babel({ presets: [reactCompilerPreset()] })],
   }),
   manifest: {

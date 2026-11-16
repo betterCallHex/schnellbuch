@@ -50,8 +50,6 @@ function writeEnvFile(state: StackState) {
     SCHNELLBUCH_MCP_URL: `${site}/mcp`,
     VITE_CONVEX_URL: backend,
     VITE_CONVEX_SITE_URL: site,
-    // With these, `bunx convex data|run|logs` in packages/backend reach
-    // this stack's backend instead of the cloud dev deployment.
     CONVEX_DEPLOYMENT: "",
     CONVEX_SELF_HOSTED_URL: backend,
     CONVEX_SELF_HOSTED_ADMIN_KEY: state.adminKey ?? "",

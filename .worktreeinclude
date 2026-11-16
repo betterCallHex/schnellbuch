@@ -1,2 +1,1 @@
 .env.local
-packages/backend/.env.local

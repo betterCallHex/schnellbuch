@@ -243,8 +243,6 @@ export async function startBackend(state: StackState, binary: string) {
   );
 }
 
-// Runs the Convex CLI against this stack's backend, never the cloud dev
-// deployment named in packages/backend/.env.local.
 export function convexCli(state: StackState, args: string[]) {
   return run("bunx", ["convex", ...args], {
     cwd: backendDir,
@@ -269,18 +267,11 @@ export function configureBackend(state: StackState) {
     convexCli(state, ["env", "set", name, value]);
   }
   console.log("Pushing Convex functions…");
-  // `convex dev` writes this stack's URLs into packages/backend/.env.local;
-  // put the file back so the developer's own deployment settings survive.
-  const envLocal = join(backendDir, ".env.local");
-  const before = existsSync(envLocal) ? readFileSync(envLocal, "utf8") : null;
+  const strayEnvFile = join(backendDir, ".env.local");
   try {
     convexCli(state, ["dev", "--once", "--typecheck", "disable"]);
   } finally {
-    if (before === null) {
-      rmSync(envLocal, { force: true });
-    } else {
-      writeFileSync(envLocal, before);
-    }
+    rmSync(strayEnvFile, { force: true });
   }
 }
 

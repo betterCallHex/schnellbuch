@@ -25,7 +25,7 @@ All of these pass before work counts as done:
 - `packages/dev-stack`: `bun run dev:verify`, the per-worktree local stack.
 - `apps/web`: TanStack Start app. Routes in `src/routes`, the authenticated shell is `src/routes/_app.tsx`.
 - `apps/extension`: the WXT browser extension (React through `@wxt-dev/module-react`, Tailwind and shadcn/ui like the web app, Vite plugins in `wxt.config.ts`). It only opens the web app's `/add` popup; keep it free of auth and backend calls.
-- Env vars are read only through t3-env: `apps/web/src/env.ts`, `packages/backend/convex/env.ts`, `apps/extension/src/lib/env.ts`, and the `createEnv` call in `apps/web/vite.config.ts`. Add new variables there and to `.env.example`.
+- One env file: `.env.local` at the repo root, nothing per package. Env vars are read only through t3-env: `apps/web/src/env.ts`, `packages/backend/convex/env.ts` (schema in `convex/model/env.ts`), `apps/extension/src/lib/env.ts`, and the `createEnv` call in `apps/web/vite.config.ts`. Add new variables there and to `.env.example`. Backend variables reach the Convex dev deployment through `packages/backend/scripts/dev-setup.ts`, which `bun run dev` runs first.
 
 ## Words
 
@@ -38,7 +38,7 @@ All of these pass before work counts as done:
 
 ## Working with Convex
 
-`packages/dev-stack` holds the `dev:verify` script. From `packages/backend`, the Convex CLI reaches the dev deployment, or this worktree's local stack after `source ~/.cache/schnellbuch/dev-verify/<stack>/env.sh`: `bunx convex data <table>`, `bunx convex run <module>:<function> '<json args>'`, `bunx convex logs`, `bunx convex env list|get|set`. MCP clients can use the same through `.mcp.json` (`convex mcp start`, dev deployment only). Mint an MCP key for a test user with `bunx convex run mcp:createApiKeyForUser '{"userId":"<Better Auth user id>","name":"test"}'`.
+`packages/dev-stack` holds the `dev:verify` script. From the repo root (root `convex.json`), the Convex CLI reaches the dev deployment, or this worktree's local stack after `source ~/.cache/schnellbuch/dev-verify/<stack>/env.sh`: `bunx convex data <table>`, `bunx convex run <module>:<function> '<json args>'`, `bunx convex logs`, `bunx convex env list|get|set`. MCP clients can use the same through `.mcp.json` (`convex mcp start`, dev deployment only). Mint an MCP key for a test user with `bunx convex run mcp:createApiKeyForUser '{"userId":"<Better Auth user id>","name":"test"}'`.
 
 ## Testing
 

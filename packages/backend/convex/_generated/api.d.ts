@@ -26,6 +26,7 @@ import type * as model_bookmarks from "../model/bookmarks.js";
 import type * as model_changes from "../model/changes.js";
 import type * as model_describe from "../model/describe.js";
 import type * as model_duplicates from "../model/duplicates.js";
+import type * as model_env from "../model/env.js";
 import type * as model_folders from "../model/folders.js";
 import type * as model_html from "../model/html.js";
 import type * as model_import from "../model/import.js";
@@ -62,6 +63,7 @@ declare const fullApi: ApiFromModules<{
   "model/changes": typeof model_changes;
   "model/describe": typeof model_describe;
   "model/duplicates": typeof model_duplicates;
+  "model/env": typeof model_env;
   "model/folders": typeof model_folders;
   "model/html": typeof model_html;
   "model/import": typeof model_import;

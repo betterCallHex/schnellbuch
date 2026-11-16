@@ -2,7 +2,7 @@
   "mcpServers": {
     "convex": {
       "command": "bunx",
-      "args": ["convex", "mcp", "start", "--project-dir", "packages/backend"]
+      "args": ["convex", "mcp", "start", "--project-dir", "."]
     }
   }
 }

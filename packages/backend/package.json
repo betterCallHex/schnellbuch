@@ -9,8 +9,8 @@
     "./tree": "./convex/model/tree.ts"
   },
   "scripts": {
-    "deploy": "convex deploy",
-    "dev": "convex dev",
+    "deploy": "cd ../.. && convex deploy",
+    "dev": "cd ../.. && convex dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p convex && tsc --noEmit -p tsconfig.test.json"
   },

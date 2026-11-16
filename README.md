@@ -24,17 +24,15 @@ bun install
 bun run dev
 ```
 
-The first run of `convex dev` asks you to log in to Convex and create a project. Then set the backend secrets once:
+The first run creates `.env.local` at the repo root from `.env.example`, generates `BETTER_AUTH_SECRET`, and asks you to log in to Convex and create a project; Convex writes the deployment and its URLs into the same file. Put your address in `SIGNUP_ALLOWED_EMAILS` there, run `bun run dev` again, then open http://localhost:3000 and create an account.
 
-```sh
-cd packages/backend
-bunx convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
-bunx convex env set SITE_URL http://localhost:3000
-bunx convex env set MCP_CONSENT_URL http://localhost:3000/connect
-bunx convex env set SIGNUP_ALLOWED_EMAILS you@example.com
-```
+### Environment variables
 
-Open http://localhost:3000 and create an account.
+There is one env file: `.env.local` at the repo root. Every app and package reads it, and there are no per-package env files. `.env.example` lists every variable.
+
+- The web app and the extension load it through Vite's `envDir`.
+- The Convex CLI runs from the repo root (`convex.json` points it at `packages/backend/convex`), so `bunx convex …` from the root reaches your dev deployment.
+- Convex functions can't read local files, so `bun run dev` pushes the backend settings (`BETTER_AUTH_SECRET`, `SITE_URL`, `MCP_CONSENT_URL`, `SIGNUP_ALLOWED_EMAILS`) from `.env.local` to your **dev** deployment before each start. Edit them in the file, never with `convex env set`. Production settings stay on the production deployment (see Deploy).
 
 ### Who can sign up
 
@@ -46,7 +44,7 @@ The website runs on Vercel and the backend on a Convex production deployment. Ev
 
 One-time setup:
 
-1. **Convex:** create a production deployment and set its settings (from `packages/backend`, with `--prod`):
+1. **Convex:** create a production deployment and set its settings (from the repo root, with `--prod`):
    ```sh
    bunx convex env set --prod BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
    bunx convex env set --prod SITE_URL https://bookmarks.example.com
