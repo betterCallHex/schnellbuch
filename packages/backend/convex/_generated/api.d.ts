@@ -35,6 +35,7 @@ import type * as model_netscape from "../model/netscape.js";
 import type * as model_page from "../model/page.js";
 import type * as model_search from "../model/search.js";
 import type * as model_signup from "../model/signup.js";
+import type * as model_style from "../model/style.js";
 import type * as model_tree from "../model/tree.js";
 import type * as model_url from "../model/url.js";
 
@@ -72,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   "model/page": typeof model_page;
   "model/search": typeof model_search;
   "model/signup": typeof model_signup;
+  "model/style": typeof model_style;
   "model/tree": typeof model_tree;
   "model/url": typeof model_url;
 }>;

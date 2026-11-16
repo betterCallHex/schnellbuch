@@ -4,6 +4,9 @@ import {
   createFolderArgs,
   deleteFolder,
   deleteFolderArgs,
+  deleteFolderWithContents,
+  duplicateFolder,
+  duplicateFolderArgs,
   listFolders,
   updateFolder,
   updateFolderArgs,
@@ -21,4 +24,12 @@ export const update = userMutation({
 export const remove = userMutation({
   args: deleteFolderArgs,
   handler: deleteFolder,
+});
+export const duplicate = userMutation({
+  args: duplicateFolderArgs,
+  handler: duplicateFolder,
+});
+export const removeWithContents = userMutation({
+  args: deleteFolderArgs,
+  handler: deleteFolderWithContents,
 });
