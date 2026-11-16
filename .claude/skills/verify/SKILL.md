@@ -13,7 +13,7 @@ description: Start SchnellBuch locally and check a change end to end in a browse
    - the Convex functions pushed to it, with `SIGNUP_ALLOWED_EMAILS=@schnellbuch.test` and the other backend settings;
    - the web app;
    - two seeded accounts, `ada@schnellbuch.test` and `bob@schnellbuch.test`, each with nested folders and bookmarks, signed up through the app's own `/api/auth` routes.
-3. It prints the app URL, each account's password, user ID and MCP API key. The same values are in `~/.cache/schnellbuch/dev-verify/<stack>/env.sh` (outside the repo): `source` it for `$SCHNELLBUCH_WEB_URL`, `$SCHNELLBUCH_MCP_URL`, `$ADA_MCP_KEY`, `$BOB_PASSWORD` and so on. After sourcing it, `bunx convex data|run|logs` in `packages/backend` reach this stack instead of the cloud dev deployment.
+3. It prints the app URL, each account's password, user ID and MCP API key. The same values are in `~/.cache/schnellbuch/dev-verify/<stack>/env.sh` (outside the repo): `source` it for `$SCHNELLBUCH_WEB_URL`, `$SCHNELLBUCH_MCP_URL`, `$ADA_MCP_KEY`, `$BOB_PASSWORD` and so on. After sourcing it, `bunx convex data|run|logs` from the repo root reach this stack instead of the cloud dev deployment.
 4. Re-running reuses the data. `bun run dev:verify reseed` starts from empty with fresh accounts; `status` says what's running.
 
 The first run downloads the Convex local backend from GitHub (`version.convex.dev` and `github.com` must be reachable). Logs are in `backend.log` and `web.log` next to `env.sh`.
@@ -61,7 +61,7 @@ The service worker only exists in a production build, and the server must run on
 
 The server is `$SCHNELLBUCH_MCP_URL`. Keep keys and tokens out of logs.
 
-- **API key:** `$ADA_MCP_KEY` and `$BOB_MCP_KEY` from `env.sh`, or Settings → "Create API key", or (after sourcing `env.sh`) `cd packages/backend && bunx convex run mcp:createApiKeyForUser '{"userId":"'$ADA_USER_ID'","name":"verify"}'`. Send JSON-RPC (`tools/list`, `tools/call`) with `Authorization: Bearer <key>`, `content-type: application/json`, `accept: application/json, text/event-stream`, `mcp-protocol-version: 2025-06-18`. For a real client: `claude -p "<task>" --strict-mcp-config --mcp-config <file> --allowedTools="mcp__schnellbuch__*"`.
+- **API key:** `$ADA_MCP_KEY` and `$BOB_MCP_KEY` from `env.sh`, or Settings → "Create API key", or (after sourcing `env.sh`, from the repo root) `bunx convex run mcp:createApiKeyForUser '{"userId":"'$ADA_USER_ID'","name":"verify"}'`. Send JSON-RPC (`tools/list`, `tools/call`) with `Authorization: Bearer <key>`, `content-type: application/json`, `accept: application/json, text/event-stream`, `mcp-protocol-version: 2025-06-18`. For a real client: `claude -p "<task>" --strict-mcp-config --mcp-config <file> --allowedTools="mcp__schnellbuch__*"`.
 - **OAuth (what Claude and ChatGPT connectors do):** register a client at `/mcp/oauth/register`, open `/mcp/oauth/authorize` with PKCE in the signed-in browser session, approve on `/connect`, catch the redirect with a one-shot local listener, then exchange the code at `/mcp/oauth/token`.
 - **Device code:** `POST /mcp/oauth/device` with `client_id=mcp-agent`, open `verification_uri_complete`, tick the code-match box, Allow, then poll `/mcp/oauth/token`.
 - Cross-user: Bob's key must get "Folder not found." / "Bookmark not found." for Ada's IDs, including in the bulk tools (`move_items`, `delete_bookmarks`, `undo_change`).

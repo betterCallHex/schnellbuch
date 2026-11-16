@@ -10,7 +10,7 @@
     "build": "turbo run build",
     "check": "biome check .",
     "check:fix": "biome check --write .",
-    "dev": "turbo run dev",
+    "dev": "bun packages/backend/scripts/dev-setup.ts && turbo run dev",
     "dev:verify": "bun packages/dev-stack/src/cli.ts",
     "fallow": "fallow dead-code",
     "routes:generate": "turbo run routes:generate",
@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.7",
+    "convex": "1.50.0",
     "fallow": "3.43.0",
     "turbo": "2.11.11",
     "typescript": "7.0.2",
