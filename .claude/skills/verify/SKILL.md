@@ -26,7 +26,8 @@ Use a named agent-browser session. Sign in on `/sign-in` as Ada or Bob with the 
 
 - The top level shows folders, then bookmarks, as a grid. Click selects, double-click (or ↵) opens, ⌘↑ goes up, Back/Forward in the toolbar follow history.
 - Paste a link into ⌘K → "Save …", or dispatch a `paste` event on the page with a link: it saves into the open folder and the title arrives within a few seconds.
-- Right-click a tile for Open / Edit / Move to / Copy link / Delete. ⌘⌫ deletes the selection; the toast's Undo restores a bookmark.
+- Right-click a tile for Open / Edit / Move to / Cut / Copy / Delete, and Customize… on a folder (colour plus a symbol or emoji, shown in the grid, the path bar and ⌘K). ⌘⌫ deletes the selection; the toast's Undo restores it.
+- Shortcuts (TanStack Hotkeys; `agent-browser press Meta+z` and friends): ⌘Z / ⌘⇧Z undo and redo this tab's moves, renames, edits, deletes, adds, pastes and customizations. ⌘X dims the selected tile and ⌘C copies it, each with a toast; ⌘V in another folder moves or copies it there. Headless Chromium doesn't paste on ⌘V, so dispatch a `paste` event whose text is exactly what was copied (the bookmark's stored URL, or the folder's name). Shortcuts pause while a dialog is open.
 - Drag a tile onto a folder tile, or onto a crumb in the path bar to move it up. Use `agent-browser mouse down/move/up` with `--steps`; `agent-browser drag` is too fast for dnd-kit.
 - Bookmarklet: open `/add?url=<encoded>&title=<encoded>` at 420×320.
 - Import and export: ⋯ → Export bookmarks downloads `schnellbuch-YYYY-MM-DD.html`; ⋯ → Import bookmarks… opens the browser picker; pick one without the extension and drop or choose a browser export (fixtures in `packages/backend/testing/fixtures`, `agent-browser upload 'input[type=file]' <file>`). It shows progress in Settings and lands in one "Imported from …" folder.
