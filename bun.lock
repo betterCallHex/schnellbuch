@@ -73,6 +73,18 @@
         "vitest": "5.1.0",
       },
     },
+    "packages/dev-stack": {
+      "name": "@schnellbuch/dev-stack",
+      "dependencies": {
+        "@schnellbuch/backend": "workspace:*",
+        "convex": "1.50.0",
+      },
+      "devDependencies": {
+        "@types/bun": "1.4.4",
+        "@types/node": "24.19.2",
+        "typescript": "7.0.2",
+      },
+    },
   },
   "packages": {
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
@@ -402,6 +414,8 @@
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.1.1", "", {}, "sha512-glFIJDvLNDtJhT9qrMFWLPbvS+skxgt4L0K8Ei2YtnhPysAJnsI7nyxSJxKj4ADeKX0OLjC4ntRkwpLOoS3rwA=="],
 
     "@schnellbuch/backend": ["@schnellbuch/backend@workspace:packages/backend"],
+
+    "@schnellbuch/dev-stack": ["@schnellbuch/dev-stack@workspace:packages/dev-stack"],
 
     "@schnellbuch/web": ["@schnellbuch/web@workspace:apps/web"],
 

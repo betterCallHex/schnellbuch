@@ -6,7 +6,9 @@
   "entry": [
     "apps/web/vite.config.ts",
     "apps/web/src/**/*.test.ts",
-    "packages/backend/vitest.config.ts"
+    "packages/backend/vitest.config.ts",
+    "packages/dev-stack/src/cli.ts",
+    "packages/dev-stack/src/**/*.test.ts"
   ],
   "ignorePatterns": ["**/_generated/**", "**/routeTree.gen.ts"],
   "ignoreExports": [

@@ -67,6 +67,7 @@ Every `add_bookmarks`, `move_items` and `delete_bookmarks` call is one change se
 | Command | What it does |
 |---|---|
 | `bun run dev` | Convex dev deployment + web app on :3000 |
+| `bun run dev:verify` | This worktree's own local backend + web app, seeded with two accounts; `down`, `reseed`, `status` |
 | `bun run check` / `check:fix` | Biome + Ultracite |
 | `bun run typecheck` | TypeScript in every package |
 | `bun run test` | Vitest (`convex-test`) and `bun test` |
