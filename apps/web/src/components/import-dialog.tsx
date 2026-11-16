@@ -100,9 +100,8 @@ function BrowserImport({ onStarted }: { onStarted: () => void }) {
       {picked && direct ? (
         <DirectImport browser={picked} onImport={importFromBrowser} />
       ) : null}
-      {picked && !direct ? (
-        <FileImport browser={picked} onFile={importFile} />
-      ) : null}
+      {picked && !direct ? <ExportSteps browser={picked} /> : null}
+      <FileDrop onFile={importFile} />
     </>
   );
 }
@@ -154,25 +153,7 @@ function DirectImport({
   );
 }
 
-function FileImport({
-  browser,
-  onFile,
-}: {
-  browser: KnownBrowser;
-  onFile: (file: File) => void;
-}) {
-  const input = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
-
-  function drop(event: DragEvent<HTMLButtonElement>) {
-    event.preventDefault();
-    setDragging(false);
-    const [file] = event.dataTransfer.files;
-    if (file) {
-      onFile(file);
-    }
-  }
-
+function ExportSteps({ browser }: { browser: KnownBrowser }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-muted-foreground">
@@ -198,6 +179,29 @@ function FileImport({
           <li key={step}>{step}</li>
         ))}
       </ol>
+    </div>
+  );
+}
+
+function FileDrop({ onFile }: { onFile: (file: File) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  function drop(event: DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    setDragging(false);
+    const [file] = event.dataTransfer.files;
+    if (file) {
+      onFile(file);
+    }
+  }
+
+  return (
+    <section
+      aria-label="Import a bookmarks file"
+      className="flex flex-col gap-2"
+    >
+      <h3 className="text-sm font-medium">Or import a bookmarks file</h3>
       <button
         className={cn(
           "hover:bg-muted focus-visible:border-ring focus-visible:ring-ring/50 flex flex-col items-center gap-2 rounded-lg border border-dashed p-4 text-center transition-colors outline-none focus-visible:ring-3",
@@ -214,7 +218,8 @@ function FileImport({
       >
         <FileUpIcon aria-hidden className="text-muted-foreground size-5" />
         <span className="text-muted-foreground">
-          Drop the exported file here
+          Drop an exported bookmarks file (.html) from any browser, app or
+          SchnellBuch backup
         </span>
         <span className={buttonVariants({ size: "sm", variant: "outline" })}>
           Choose file…
@@ -232,6 +237,6 @@ function FileImport({
         ref={input}
         type="file"
       />
-    </div>
+    </section>
   );
 }
