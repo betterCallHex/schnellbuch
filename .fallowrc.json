@@ -9,14 +9,18 @@
     "packages/backend/vitest.config.ts",
     "packages/dev-stack/src/cli.ts",
     "apps/extension/wxt.config.ts",
-    "apps/extension/entrypoints/**/*.ts",
-    "apps/extension/lib/**/*.test.ts",
+    "apps/extension/src/entrypoints/**/*.{ts,tsx}",
+    "apps/extension/src/**/*.test.ts",
     "packages/dev-stack/src/**/*.test.ts"
   ],
   "ignorePatterns": ["**/_generated/**", "**/routeTree.gen.ts"],
   "ignoreExports": [
     {
       "file": "apps/web/src/components/ui/**",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/extension/src/components/ui/**",
       "exports": ["*"]
     }
   ]
