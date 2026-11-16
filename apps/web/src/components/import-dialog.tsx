@@ -1,3 +1,4 @@
+import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { cn } from "cn";
 import { FileUpIcon, FolderInputIcon } from "lucide-react";
 import { type DragEvent, useRef, useState } from "react";
@@ -33,8 +34,12 @@ export function ImportDialog({
 }) {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="sm:max-w-lg">
-        <BrowserImport onStarted={() => onOpenChange(false)} />
+      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-lg">
+        {open ? (
+          <HotkeysProvider exclusive scope="dialog">
+            <BrowserImport onStarted={() => onOpenChange(false)} />
+          </HotkeysProvider>
+        ) : null}
       </DialogContent>
     </Dialog>
   );
