@@ -11,7 +11,8 @@ Fast, open-source bookmarks that work in every browser, and that your AI agents 
 - **Import and export**: pick the browser your bookmarks are in. With the extension installed in that browser they import in one click; otherwise SchnellBuch shows that browser's export steps and takes the exported file (Safari always goes this way). Folders, titles and dates are kept and links you already have are skipped. Export downloads your whole library as a bookmarks file, as a backup.
 - **MCP server** so Claude, Cursor or any MCP client can list, search, add, move and delete your bookmarks.
 - Live everywhere: a change from an agent or another tab shows up immediately.
-- **Installable, and readable offline**: install it from the browser (or "Add to Home Screen") and it opens in its own window. Without a network you can still browse and search (⌘K) the library you last loaded; saving, moving and deleting pause until you're back. Signing out removes that copy from the device.
+- **Installable, and works offline**: install it from the browser (or "Add to Home Screen") and it opens in its own window. Without a network you can still browse and search (⌘K) the library you last loaded, and add, edit, move, copy and delete bookmarks and folders. Those changes are kept on the device (IndexedDB), marked "Waiting to sync", and sent in order once you're back online, even after a reload. Signing out removes the copy and any unsynced changes from the device.
+- **Finder-style Edit menu**: the toolbar's Edit menu names what ⌘Z and ⇧⌘Z would undo or redo ("Undo Move “Docs”"), and cuts, copies and pastes the selected item.
 
 ## Stack
 

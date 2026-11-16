@@ -27,12 +27,17 @@ Use a named agent-browser session. Sign in on `/sign-in` as Ada or Bob with the 
 - The top level shows folders, then bookmarks, as a grid. Click selects, double-click (or ↵) opens, ⌘↑ goes up, Back/Forward in the toolbar follow history.
 - Paste a link into ⌘K → "Save …", or dispatch a `paste` event on the page with a link: it saves into the open folder and the title arrives within a few seconds.
 - Right-click a tile for Open / Edit / Move to / Cut / Copy / Delete, and Customize… on a folder (colour plus a symbol or emoji, shown in the grid, the path bar and ⌘K). ⌘⌫ deletes the selection; the toast's Undo restores it.
+- The toolbar's Edit menu (the ↶ button) names the next undo and redo ("Undo Delete “MDN Web Docs”") and cuts, copies and pastes the selected tile.
 - Shortcuts (TanStack Hotkeys; `agent-browser press Meta+z` and friends): ⌘Z / ⌘⇧Z undo and redo this tab's moves, renames, edits, deletes, adds, pastes and customizations. ⌘X dims the selected tile and ⌘C copies it, each with a toast; ⌘V in another folder moves or copies it there. Headless Chromium doesn't paste on ⌘V, so dispatch a `paste` event whose text is exactly what was copied (the bookmark's stored URL, or the folder's name). Shortcuts pause while a dialog is open.
 - Drag a tile onto a folder tile, or onto a crumb in the path bar to move it up. Use `agent-browser mouse down/move/up` with `--steps`; `agent-browser drag` is too fast for dnd-kit.
 - Bookmarklet: open `/add?url=<encoded>&title=<encoded>` at 420×320.
 - Import and export: ⋯ → Export bookmarks downloads `schnellbuch-YYYY-MM-DD.html`; ⋯ → Import bookmarks… opens the browser picker; pick one without the extension and drop or choose a browser export (fixtures in `packages/backend/testing/fixtures`, `agent-browser upload 'input[type=file]' <file>`). It shows progress in Settings and lands in one "Imported from …" folder.
 - Settings → Recent agent changes lists bulk changes an agent made, each with Undo.
 - Phone width: `agent-browser set device "iPhone 14"`; a tap opens a tile.
+
+## Offline edits in dev
+
+Without a production build: `window.dispatchEvent(new Event("offline"))` puts the page offline, so edits queue in IndexedDB (`offline-queue` store); reloading brings it back online and the queue syncs from storage. For a real disconnect, kill the stack's backend (`pids.backend` in `state.json`), edit, then `bun run dev:verify` to restart it: the queue syncs without a reload.
 
 ## Offline and install
 
@@ -43,10 +48,10 @@ The service worker only exists in a production build, and the server must run on
 3. In Playwright (`chromium.launch()`), sign in as Ada and wait for `navigator.serviceWorker.ready`, then reload once so the worker caches the page. Wait a second for the mirror write.
 4. Check:
    - `Page.getInstallabilityErrors` over CDP returns `[]`.
-   - `ctx.setOffline(true)`: the banner says "You're offline", New (+) is disabled, and a pasted link gets the offline toast.
+   - `ctx.setOffline(true)`: the banner says "You're offline". Add a folder, paste a link into it, delete a bookmark: each shows at once, marked "Waiting to sync", and the banner counts them.
    - Reload while offline: the grid comes back from the mirror, with "Showing your bookmarks as of …". Open a folder, and ⌘K finds bookmarks.
-   - Add a bookmark over MCP while the page is offline, then `ctx.setOffline(false)`: it appears with no navigation.
-   - Sign out: the `schnellbuch` IndexedDB entry, the `schnellbuch-pages` cache and `localStorage["schnellbuch:last-user"]` are gone.
+   - Add a bookmark over MCP while the page is offline, then `ctx.setOffline(false)`: it appears with no navigation, and the queued changes sync in order ("Synced N changes made offline").
+   - Sign out: with changes still waiting, a toast asks first. Then the `schnellbuch` IndexedDB entry (mirror, `offline-queue`, `synced-ids`), the `schnellbuch-pages` cache and `localStorage["schnellbuch:last-user"]` are gone.
 
 ## Browser extension
 
