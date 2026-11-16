@@ -33,6 +33,20 @@ Use a named agent-browser session. Sign in on `/sign-in` as Ada or Bob with the 
 - Settings → Recent agent changes lists bulk changes an agent made, each with Undo.
 - Phone width: `agent-browser set device "iPhone 14"`; a tap opens a tile.
 
+## Offline and install
+
+The service worker only exists in a production build, and the server must run on the stack's web port, because Better Auth trusts only that origin:
+
+1. `source <stack>/env.sh && bun run --cwd apps/web build`.
+2. Stop the stack's Vite server (its PID is `pids.web` in `state.json`), then `PORT=<web port> node apps/web/.output/server/index.mjs`. Afterwards, stop it and run `bun run dev:verify` again to bring Vite back.
+3. In Playwright (`chromium.launch()`), sign in as Ada and wait for `navigator.serviceWorker.ready`, then reload once so the worker caches the page. Wait a second for the mirror write.
+4. Check:
+   - `Page.getInstallabilityErrors` over CDP returns `[]`.
+   - `ctx.setOffline(true)`: the banner says "You're offline", New (+) is disabled, and a pasted link gets the offline toast.
+   - Reload while offline: the grid comes back from the mirror, with "Showing your bookmarks as of …". Open a folder, and ⌘K finds bookmarks.
+   - Add a bookmark over MCP while the page is offline, then `ctx.setOffline(false)`: it appears with no navigation.
+   - Sign out: the `schnellbuch` IndexedDB entry, the `schnellbuch-pages` cache and `localStorage["schnellbuch:last-user"]` are gone.
+
 ## Browser extension
 
 1. Build it for this stack: `source <stack>/env.sh && WXT_SCHNELLBUCH_URL=$SCHNELLBUCH_WEB_URL bunx --cwd apps/extension wxt build -b chrome`.

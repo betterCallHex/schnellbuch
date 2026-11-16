@@ -1,14 +1,15 @@
 import { api } from "@schnellbuch/backend/api";
-import { useAction } from "convex/react";
+
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
 import { importSummary } from "@/lib/import-summary";
+import { useOnlineAction } from "@/lib/offline";
 
 // Opens a file picker for a browser's bookmarks export and imports it. The
 // import keeps running on the server if the page is closed; Settings shows
 // its progress.
 export function useImportBookmarks() {
-  const start = useAction(api.imports.start);
+  const start = useOnlineAction(api.imports.start);
   return () => {
     const input = document.createElement("input");
     input.type = "file";

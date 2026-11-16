@@ -1,6 +1,5 @@
 import { api } from "@schnellbuch/backend/api";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useAction, useMutation, useQuery } from "convex/react";
 import {
   ArchiveIcon,
   BookmarkPlusIcon,
@@ -28,6 +27,11 @@ import { bookmarkletHref } from "@/lib/bookmarklet";
 import { errorMessage, succeeded } from "@/lib/errors";
 import { importProgress, importSummary } from "@/lib/import-summary";
 import { claudeCodeCommand, mcpEndpoint } from "@/lib/mcp-config";
+import {
+  useOnlineAction,
+  useOnlineMutation,
+  useSignedInQuery,
+} from "@/lib/offline";
 import { useExportLibrary } from "@/lib/use-export";
 import { useImportBookmarks } from "@/lib/use-import";
 
@@ -50,9 +54,9 @@ function Settings() {
 }
 
 function AgentAccess() {
-  const connections = useQuery(api.mcp.listConnections, {});
-  const createApiKey = useAction(api.mcp.createApiKey);
-  const revokeConnection = useMutation(api.mcp.revokeConnection);
+  const connections = useSignedInQuery(api.mcp.listConnections, {});
+  const createApiKey = useOnlineAction(api.mcp.createApiKey);
+  const revokeConnection = useOnlineMutation(api.mcp.revokeConnection);
   const [newKey, setNewKey] = useState<string | null>(null);
   const endpoint = mcpEndpoint(env.VITE_CONVEX_SITE_URL);
 
@@ -150,8 +154,8 @@ function AgentAccess() {
 }
 
 function AgentChanges() {
-  const changes = useQuery(api.changes.list, { limit: 10 });
-  const undo = useMutation(api.changes.undo);
+  const changes = useSignedInQuery(api.changes.list, { limit: 10 });
+  const undo = useOnlineMutation(api.changes.undo);
   if (!changes || changes.length === 0) {
     return null;
   }
@@ -295,7 +299,7 @@ function ImportExport() {
 }
 
 function LatestImport() {
-  const latest = useQuery(api.imports.latest, {});
+  const latest = useSignedInQuery(api.imports.latest, {});
   if (!latest) {
     return null;
   }

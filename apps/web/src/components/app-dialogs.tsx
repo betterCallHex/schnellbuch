@@ -1,7 +1,7 @@
 import { api } from "@schnellbuch/backend/api";
 import type { Id } from "@schnellbuch/backend/data-model";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useMutation } from "convex/react";
+
 import {
   createContext,
   type FormEvent,
@@ -29,6 +29,7 @@ import {
   useUpdateBookmark,
   useUpdateFolder,
 } from "@/lib/library";
+import { useOnlineMutation } from "@/lib/offline";
 
 type DialogRequest =
   | { kind: "add-bookmark"; folderId?: Id<"folders"> }
@@ -95,7 +96,7 @@ function BookmarkForm({
   onDone: () => void;
 }) {
   const { flatFolders } = useLibrary();
-  const addBookmark = useMutation(api.bookmarks.add);
+  const addBookmark = useOnlineMutation(api.bookmarks.add);
   const updateBookmark = useUpdateBookmark();
   const [folder, setFolder] = useState<string>(
     bookmark?.folderId ?? initialFolderId ?? TOP_LEVEL
@@ -182,7 +183,7 @@ function FolderNameForm({
   parentId?: Id<"folders">;
   onDone: () => void;
 }) {
-  const createFolder = useMutation(api.folders.create);
+  const createFolder = useOnlineMutation(api.folders.create);
   const updateFolder = useUpdateFolder();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -225,7 +226,7 @@ function DeleteFolderConfirm({
   folder: FolderEntry;
   onDone: () => void;
 }) {
-  const removeFolder = useMutation(api.folders.remove);
+  const removeFolder = useOnlineMutation(api.folders.remove);
   const { flatFolders } = useLibrary();
   const navigate = useNavigate();
   const { folder: activeFolder } = useSearch({ strict: false });

@@ -5,6 +5,7 @@
   },
   "entry": [
     "apps/web/vite.config.ts",
+    "apps/web/src/sw/service-worker.ts",
     "apps/web/src/**/*.test.ts",
     "packages/backend/vitest.config.ts",
     "packages/dev-stack/src/cli.ts",

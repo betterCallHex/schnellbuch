@@ -1,15 +1,17 @@
 import { api } from "@schnellbuch/backend/api";
 import type { Id } from "@schnellbuch/backend/data-model";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useMutation } from "convex/react";
+
 import { CheckIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { FolderSelect, TOP_LEVEL } from "@/components/folder-select";
+import { LibraryProvider } from "@/components/library-provider";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { errorMessage, succeeded } from "@/lib/errors";
 import { recallFolder, rememberFolder } from "@/lib/last-folder";
 import { useLibrary, useUpdateBookmark } from "@/lib/library";
+import { useOnlineMutation } from "@/lib/offline";
 
 export const Route = createFileRoute("/add")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -37,7 +39,7 @@ const FOLDER_GONE = "Folder not found.";
 
 function AddFromBookmarklet() {
   const { url, title } = Route.useSearch();
-  const addBookmark = useMutation(api.bookmarks.add);
+  const addBookmark = useOnlineMutation(api.bookmarks.add);
   const [state, setState] = useState<SaveState>({ status: "saving" });
   const started = useRef(false);
 
@@ -92,11 +94,13 @@ function SaveStatus({ state, title }: { state: SaveState; title: string }) {
       );
     case "saved":
       return (
-        <SavedBookmark
-          bookmarkId={state.bookmarkId}
-          initialFolder={state.folderId}
-          title={title}
-        />
+        <LibraryProvider>
+          <SavedBookmark
+            bookmarkId={state.bookmarkId}
+            initialFolder={state.folderId}
+            title={title}
+          />
+        </LibraryProvider>
       );
     default:
       return state satisfies never;

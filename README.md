@@ -11,6 +11,7 @@ Fast, open-source bookmarks that work in every browser, and that your AI agents 
 - **Import and export**: bring in the bookmarks file Chrome, Firefox, Safari or Edge exports (folders, titles and dates kept, links you already have skipped), and download your whole library in the same format as a backup.
 - **MCP server** so Claude, Cursor or any MCP client can list, search, add, move and delete your bookmarks.
 - Live everywhere: a change from an agent or another tab shows up immediately.
+- **Installable, and readable offline**: install it from the browser (or "Add to Home Screen") and it opens in its own window. Without a network you can still browse and search (⌘K) the library you last loaded; saving, moving and deleting pause until you're back. Signing out removes that copy from the device.
 
 ## Stack
 

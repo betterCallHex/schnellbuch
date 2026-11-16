@@ -3,13 +3,15 @@ import { DragDropProvider } from "@dnd-kit/react";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppDialogsProvider } from "@/components/app-dialogs";
 import { CommandPalette } from "@/components/command-palette";
+import { LibraryProvider } from "@/components/library-provider";
+import { OfflineBanner } from "@/components/offline-banner";
 import { type DragItem, type DropTarget, dragSensors } from "@/lib/drag";
 import { succeeded } from "@/lib/errors";
 import { useUpdateBookmark, useUpdateFolder } from "@/lib/library";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: ({ context, location }) => {
-    if (!context.token) {
+    if (!(context.token || context.offlineUserId)) {
       throw redirect({ to: "/sign-in", search: { redirect: location.href } });
     }
   },
@@ -17,6 +19,14 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
+  return (
+    <LibraryProvider>
+      <AppShell />
+    </LibraryProvider>
+  );
+}
+
+function AppShell() {
   const updateBookmark = useUpdateBookmark();
   const updateFolder = useUpdateFolder();
 
@@ -39,6 +49,7 @@ function AppLayout() {
     <AppDialogsProvider>
       <DragDropProvider onDragEnd={fileDroppedItem} sensors={dragSensors}>
         <div className="flex min-h-svh flex-col">
+          <OfflineBanner />
           <Outlet />
         </div>
       </DragDropProvider>
