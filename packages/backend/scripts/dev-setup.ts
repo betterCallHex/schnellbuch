@@ -4,16 +4,35 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { createEnv } from "@t3-oss/env-core";
+import * as z from "zod";
 import { backendEnvSchema } from "../convex/model/env";
 
 const rootDir = join(import.meta.dirname, "..", "..", "..");
 const envFile = join(rootDir, ".env.local");
-const backendNames = Object.keys(backendEnvSchema);
+const backendNames = Object.keys(backendEnvSchema) as Array<
+  keyof typeof backendEnvSchema
+>;
 const emptySecretLine = /^BETTER_AUTH_SECRET=$/mu;
+const forbiddenDeployKey = z.undefined({
+  error:
+    "CONVEX_DEPLOY_KEY belongs in Vercel's settings only: the Convex CLI would target that deployment instead of your dev one.",
+});
 
+createEnv({
+  server: { CONVEX_DEPLOY_KEY: forbiddenDeployKey },
+  runtimeEnv: process.env,
+  isServer: true,
+  emptyStringAsUndefined: true,
+});
 createEnvFileOnce();
+const settings = createEnv({
+  server: { ...backendEnvSchema, CONVEX_DEPLOY_KEY: forbiddenDeployKey },
+  runtimeEnv: parseEnv(readFileSync(envFile, "utf8")),
+  isServer: true,
+  emptyStringAsUndefined: true,
+});
 runConvex(["init"]);
-pushBackendEnv(parseEnv(readFileSync(envFile, "utf8")));
+pushBackendSettings();
 
 function createEnvFileOnce() {
   if (existsSync(envFile)) {
@@ -28,23 +47,12 @@ function createEnvFileOnce() {
   console.log("Created .env.local from .env.example.");
 }
 
-function pushBackendEnv(fileEnv: NodeJS.Dict<string>) {
-  if (fileEnv.CONVEX_DEPLOY_KEY || process.env.CONVEX_DEPLOY_KEY) {
-    throw new Error(
-      "CONVEX_DEPLOY_KEY is set: the Convex CLI would target that deployment instead of your dev one. It belongs in Vercel's settings only; remove it from .env.local and your shell."
-    );
-  }
-  createEnv({
-    server: backendEnvSchema,
-    runtimeEnv: fileEnv,
-    isServer: true,
-    emptyStringAsUndefined: true,
-  });
-  const filled = backendNames.filter((name) => fileEnv[name]);
-  const empty = backendNames.filter((name) => !fileEnv[name]);
+function pushBackendSettings() {
+  const filled = backendNames.filter((name) => settings[name] !== undefined);
+  const empty = backendNames.filter((name) => settings[name] === undefined);
   runConvex(
     ["env", "set", "--force"],
-    filled.map((name) => `${name}='${fileEnv[name]}'`).join("\n")
+    filled.map((name) => `${name}='${settings[name]}'`).join("\n")
   );
   for (const name of empty) {
     runConvex(["env", "remove", name]);
