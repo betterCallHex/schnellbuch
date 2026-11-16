@@ -1,7 +1,14 @@
 import { api } from "@schnellbuch/backend/api";
-import { createFileRoute } from "@tanstack/react-router";
-import { useAction, useMutation, useQuery } from "convex/react";
-import { BookmarkPlusIcon, CopyIcon, KeyRoundIcon } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  ArchiveIcon,
+  BookmarkPlusIcon,
+  CopyIcon,
+  DownloadIcon,
+  HistoryIcon,
+  KeyRoundIcon,
+  UploadIcon,
+} from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { Toolbar } from "@/components/toolbar";
@@ -18,7 +25,15 @@ import { Label } from "@/components/ui/label";
 import { env } from "@/env";
 import { bookmarkletHref } from "@/lib/bookmarklet";
 import { errorMessage, succeeded } from "@/lib/errors";
+import { importProgress, importSummary } from "@/lib/import-summary";
 import { claudeCodeCommand, mcpEndpoint } from "@/lib/mcp-config";
+import {
+  useOnlineAction,
+  useOnlineMutation,
+  useSignedInQuery,
+} from "@/lib/offline";
+import { useExportLibrary } from "@/lib/use-export";
+import { useImportBookmarks } from "@/lib/use-import";
 
 export const Route = createFileRoute("/_app/settings")({ component: Settings });
 
@@ -30,16 +45,18 @@ function Settings() {
       </Toolbar>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 md:p-6">
         <AgentAccess />
+        <AgentChanges />
         <Bookmarklet />
+        <ImportExport />
       </div>
     </>
   );
 }
 
 function AgentAccess() {
-  const connections = useQuery(api.mcp.listConnections, {});
-  const createApiKey = useAction(api.mcp.createApiKey);
-  const revokeConnection = useMutation(api.mcp.revokeConnection);
+  const connections = useSignedInQuery(api.mcp.listConnections, {});
+  const createApiKey = useOnlineAction(api.mcp.createApiKey);
+  const revokeConnection = useOnlineMutation(api.mcp.revokeConnection);
   const [newKey, setNewKey] = useState<string | null>(null);
   const endpoint = mcpEndpoint(env.VITE_CONVEX_SITE_URL);
 
@@ -136,6 +153,59 @@ function AgentAccess() {
   );
 }
 
+function AgentChanges() {
+  const changes = useSignedInQuery(api.changes.list, { limit: 10 });
+  const undo = useOnlineMutation(api.changes.undo);
+  if (!changes || changes.length === 0) {
+    return null;
+  }
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <HistoryIcon aria-hidden className="size-4" />
+          Recent agent changes
+        </CardTitle>
+        <CardDescription>
+          Bulk changes your agents made. Undo puts everything back in one step.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="flex flex-col divide-y rounded-lg border">
+          {changes.map((change) => (
+            <li className="flex items-center gap-3 p-3 text-sm" key={change.id}>
+              <span className="min-w-0 flex-1">
+                <span className={change.undone ? "line-through" : undefined}>
+                  {change.summary}
+                </span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {new Date(change.madeAt).toLocaleString()}
+                </span>
+              </span>
+              {change.undone ? (
+                <span className="text-muted-foreground">Undone</span>
+              ) : (
+                <Button
+                  onClick={async () => {
+                    if (await succeeded(undo({ changeId: change.id }))) {
+                      toast.success(`Undid: ${change.summary}`);
+                    }
+                  }}
+                  size="sm"
+                  variant="outline"
+                >
+                  Undo
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
 function Snippet({ label, text }: { label: string; text: string }) {
   async function copy() {
     await navigator.clipboard.writeText(text);
@@ -192,5 +262,89 @@ function Bookmarklet() {
         </a>
       </CardContent>
     </Card>
+  );
+}
+
+function ImportExport() {
+  const exportLibrary = useExportLibrary();
+  const importBookmarks = useImportBookmarks();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ArchiveIcon aria-hidden className="size-4" />
+          Import and export
+        </CardTitle>
+        <CardDescription>
+          Bring in the bookmarks file Chrome, Firefox, Safari or Edge exports.
+          It lands in one new folder, skipping links you already have. Export
+          downloads everything in the same format, so it doubles as a backup.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={importBookmarks} variant="outline">
+            <UploadIcon />
+            Import bookmarks…
+          </Button>
+          <Button onClick={exportLibrary} variant="outline">
+            <DownloadIcon />
+            Export bookmarks
+          </Button>
+        </div>
+        <LatestImport />
+      </CardContent>
+    </Card>
+  );
+}
+
+function LatestImport() {
+  const latest = useSignedInQuery(api.imports.latest, {});
+  if (!latest) {
+    return null;
+  }
+  const percent = Math.round(importProgress(latest) * 100);
+  return (
+    <div
+      aria-live="polite"
+      className="flex flex-col gap-2 rounded-lg border p-3 text-sm"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate font-medium">{latest.fileName}</span>
+        <span className="text-muted-foreground shrink-0">
+          {latest.status === "running" ? `${percent}%` : null}
+          {latest.status === "done" ? "Done" : null}
+          {latest.status === "failed" ? "Stopped" : null}
+        </span>
+      </div>
+      {latest.status === "running" ? (
+        <div
+          aria-label="Import progress"
+          aria-valuemax={100}
+          aria-valuemin={0}
+          aria-valuenow={percent}
+          className="bg-muted h-1.5 overflow-hidden rounded-full"
+          role="progressbar"
+        >
+          <div
+            className="bg-primary h-full transition-[width]"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      ) : null}
+      <p className="text-muted-foreground">
+        {latest.status === "failed" ? `${latest.error} ` : null}
+        {importSummary(latest)}
+      </p>
+      {latest.status === "done" ? (
+        <Link
+          className="underline underline-offset-2"
+          search={{ folder: latest.folderId }}
+          to="/"
+        >
+          Open the imported folder
+        </Link>
+      ) : null}
+    </div>
   );
 }

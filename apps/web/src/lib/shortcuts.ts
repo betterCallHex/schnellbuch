@@ -1,16 +1,17 @@
 import { api } from "@schnellbuch/backend/api";
 import type { Id } from "@schnellbuch/backend/data-model";
 import { useNavigate } from "@tanstack/react-router";
-import { useMutation } from "convex/react";
+
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { succeeded } from "@/lib/errors";
 import { looksLikeLink } from "@/lib/link";
+import { useOnlineMutation } from "@/lib/offline";
 
 const EDITABLE = "input, textarea, select, [contenteditable='true']";
 
 export function usePasteToSave(folderId: Id<"folders"> | undefined) {
-  const addBookmark = useMutation(api.bookmarks.add);
+  const addBookmark = useOnlineMutation(api.bookmarks.add);
   useEffect(() => {
     async function savePastedLink(event: ClipboardEvent) {
       const text = event.clipboardData?.getData("text/plain").trim() ?? "";

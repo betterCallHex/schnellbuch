@@ -11,8 +11,10 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "dev": "turbo run dev",
+    "dev:verify": "bun packages/dev-stack/src/cli.ts",
     "fallow": "fallow dead-code",
     "routes:generate": "turbo run routes:generate",
+    "smoke": "bun packages/dev-stack/src/smoke.ts",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck"
   },

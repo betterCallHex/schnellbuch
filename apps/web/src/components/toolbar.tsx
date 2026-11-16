@@ -2,18 +2,21 @@ import type { Id } from "@schnellbuch/backend/data-model";
 import {
   useCanGoBack,
   useNavigate,
+  useRouteContext,
   useRouter,
   useSearch,
 } from "@tanstack/react-router";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
+  DownloadIcon,
   EllipsisIcon,
   FolderPlusIcon,
   LogOutIcon,
   PlusIcon,
   SearchIcon,
   SettingsIcon,
+  UploadIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useOpenDialog } from "@/components/app-dialogs";
@@ -27,6 +30,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
+import { tokenSubject } from "@/lib/mirror";
+import { clearOfflineData, OFFLINE_MESSAGE, useOffline } from "@/lib/offline";
+import { useExportLibrary } from "@/lib/use-export";
+import { useImportBookmarks } from "@/lib/use-import";
 
 export function Toolbar({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -78,6 +85,7 @@ function openPalette() {
 
 function NewMenu() {
   const openDialog = useOpenDialog();
+  const offline = useOffline();
   const { folder } = useSearch({ strict: false });
   const folderId = folder as Id<"folders"> | undefined;
   return (
@@ -87,7 +95,9 @@ function NewMenu() {
           <Button
             aria-label="New"
             className="rounded-full"
+            disabled={offline}
             size="icon"
+            title={offline ? OFFLINE_MESSAGE : undefined}
             variant="outline"
           />
         }
@@ -119,8 +129,13 @@ function NewMenu() {
 
 function MoreMenu() {
   const navigate = useNavigate();
+  const exportLibrary = useExportLibrary();
+  const importBookmarks = useImportBookmarks();
+  const offline = useOffline();
+  const { token, offlineUserId } = useRouteContext({ from: "__root__" });
 
   async function signOut() {
+    await clearOfflineData(tokenSubject(token) ?? offlineUserId);
     await authClient.signOut();
     window.location.assign("/sign-in");
   }
@@ -139,7 +154,16 @@ function MoreMenu() {
       >
         <EllipsisIcon />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuItem disabled={offline} onClick={importBookmarks}>
+          <UploadIcon />
+          Import bookmarks…
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={exportLibrary}>
+          <DownloadIcon />
+          Export bookmarks
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => navigate({ to: "/settings" })}>
           <SettingsIcon />
           Settings

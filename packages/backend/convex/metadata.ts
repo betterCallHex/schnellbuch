@@ -5,6 +5,7 @@ import {
   internalMutation,
   internalQuery,
 } from "./_generated/server";
+import { MAX_TITLE_LENGTH } from "./model/bookmarks";
 import {
   defaultFaviconUrl,
   type PageMetadata,
@@ -16,8 +17,9 @@ const FETCH_TIMEOUT_MS = 8000;
 const MAX_HTML_LENGTH = 500_000;
 
 export const fetchMetadata = internalAction({
-  args: { bookmarkId: v.id("bookmarks") },
-  handler: async (ctx, { bookmarkId }) => {
+  // keepTitle: the title came from the user or an import; only fill the icon.
+  args: { bookmarkId: v.id("bookmarks"), keepTitle: v.optional(v.boolean()) },
+  handler: async (ctx, { bookmarkId, keepTitle }) => {
     const bookmark = await ctx.runQuery(internal.metadata.getBookmark, {
       bookmarkId,
     });
@@ -28,7 +30,8 @@ export const fetchMetadata = internalAction({
     await ctx.runMutation(internal.metadata.applyMetadata, {
       bookmarkId,
       url: bookmark.url,
-      ...metadata,
+      faviconUrl: metadata.faviconUrl,
+      title: keepTitle ? undefined : metadata.title?.slice(0, MAX_TITLE_LENGTH),
     });
   },
 });

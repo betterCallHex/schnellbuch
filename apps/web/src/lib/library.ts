@@ -1,27 +1,38 @@
 import { api } from "@schnellbuch/backend/api";
-import { buildFolderTree, flattenFolderTree } from "@schnellbuch/backend/tree";
-import { useMutation, useQuery } from "convex/react";
+import type { Doc } from "@schnellbuch/backend/data-model";
+import type { FolderNode } from "@schnellbuch/backend/tree";
+import { createContext, useContext } from "react";
 import { toast } from "sonner";
 import { succeeded } from "@/lib/errors";
+import type { LibrarySource } from "@/lib/mirror";
+import { useOnlineMutation } from "@/lib/offline";
 
-export function useLibrary() {
-  const folders = useQuery(api.folders.list, {});
-  const bookmarks = useQuery(api.bookmarks.list, {});
-  const tree = buildFolderTree(folders ?? []);
-  return {
-    loaded: folders !== undefined && bookmarks !== undefined,
-    bookmarks: bookmarks ?? [],
-    tree,
-    flatFolders: flattenFolderTree(tree),
-  };
+export interface Library {
+  bookmarks: Doc<"bookmarks">[];
+  flatFolders: FolderNode<Doc<"folders">>[];
+  loaded: boolean;
+  mirroredAt?: number;
+  // "mirror": the copy saved on this device, shown while offline.
+  source: LibrarySource;
+  tree: FolderNode<Doc<"folders">>[];
 }
 
-export type Library = ReturnType<typeof useLibrary>;
+export const LibraryContext = createContext<Library | null>(null);
+
+// The signed-in user's folders and bookmarks, from LibraryProvider.
+export function useLibrary() {
+  const library = useContext(LibraryContext);
+  if (!library) {
+    throw new Error("useLibrary needs a LibraryProvider above it.");
+  }
+  return library;
+}
+
 export type FolderEntry = Library["flatFolders"][number];
 export type BookmarkEntry = Library["bookmarks"][number];
 
 export function useUpdateBookmark() {
-  return useMutation(api.bookmarks.update).withOptimisticUpdate(
+  return useOnlineMutation(api.bookmarks.update).withOptimisticUpdate(
     (store, change) => {
       const bookmarks = store.getQuery(api.bookmarks.list, {});
       if (!bookmarks) {
@@ -49,7 +60,7 @@ export function useUpdateBookmark() {
 }
 
 function useRemoveBookmark() {
-  return useMutation(api.bookmarks.remove).withOptimisticUpdate(
+  return useOnlineMutation(api.bookmarks.remove).withOptimisticUpdate(
     (store, { bookmarkId }) => {
       const bookmarks = store.getQuery(api.bookmarks.list, {});
       if (bookmarks) {
@@ -64,7 +75,7 @@ function useRemoveBookmark() {
 }
 
 export function useUpdateFolder() {
-  return useMutation(api.folders.update).withOptimisticUpdate(
+  return useOnlineMutation(api.folders.update).withOptimisticUpdate(
     (store, change) => {
       const folders = store.getQuery(api.folders.list, {});
       if (!folders) {
@@ -94,7 +105,7 @@ export function useUpdateFolder() {
 
 export function useDeleteBookmark() {
   const removeBookmark = useRemoveBookmark();
-  const addBookmark = useMutation(api.bookmarks.add);
+  const addBookmark = useOnlineMutation(api.bookmarks.add);
   return async (bookmark: BookmarkEntry) => {
     if (!(await succeeded(removeBookmark({ bookmarkId: bookmark._id })))) {
       return;
@@ -108,6 +119,7 @@ export function useDeleteBookmark() {
               url: bookmark.url,
               title: bookmark.title,
               folderId: bookmark.folderId,
+              savedAt: bookmark.savedAt ?? bookmark._creationTime,
             })
           ),
       },

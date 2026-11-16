@@ -121,10 +121,17 @@ async function assertOutsideFolder(
   }
 }
 
+const MAX_FOLDER_NAME_LENGTH = 200;
+
 function cleanFolderName(name: string) {
   const trimmed = name.trim();
   if (!trimmed) {
     throw new ConvexError("Folder name can't be empty.");
+  }
+  if (trimmed.length > MAX_FOLDER_NAME_LENGTH) {
+    throw new ConvexError(
+      `A folder name can be at most ${MAX_FOLDER_NAME_LENGTH} characters.`
+    );
   }
   return trimmed;
 }

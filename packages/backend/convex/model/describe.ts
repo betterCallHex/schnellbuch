@@ -1,5 +1,6 @@
 import { type Infer, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
+import { savedAtOf } from "./bookmarks";
 import { buildFolderTree, flattenFolderTree } from "./tree";
 
 export const bookmarkResult = v.object({
@@ -37,6 +38,13 @@ export function describeLibrary(
   );
   return {
     folders: folderSummaries,
+    // A folder's ID and every folder inside it.
+    subtree: (folderId: Id<"folders">) => {
+      const node = flatTree.find((folder) => folder._id === folderId);
+      return new Set(
+        node ? flattenFolderTree([node]).map((folder) => folder._id) : []
+      );
+    },
     folder: (folderId: Id<"folders">) =>
       folderSummaries.find((folder) => folder.id === folderId),
     bookmark: (bookmark: Doc<"bookmarks">): Infer<typeof bookmarkResult> => ({
@@ -47,7 +55,7 @@ export function describeLibrary(
       folderPath: bookmark.folderId
         ? (pathById.get(bookmark.folderId) ?? null)
         : null,
-      savedAt: new Date(bookmark._creationTime).toISOString(),
+      savedAt: new Date(savedAtOf(bookmark)).toISOString(),
     }),
   };
 }

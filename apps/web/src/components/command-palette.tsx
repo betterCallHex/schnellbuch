@@ -2,7 +2,7 @@ import { api } from "@schnellbuch/backend/api";
 import type { Id } from "@schnellbuch/backend/data-model";
 import { searchBookmarks } from "@schnellbuch/backend/search";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useMutation } from "convex/react";
+
 import {
   FolderIcon,
   FolderPlusIcon,
@@ -27,6 +27,7 @@ import {
 import { succeeded } from "@/lib/errors";
 import { useLibrary } from "@/lib/library";
 import { looksLikeLink } from "@/lib/link";
+import { useOnlineMutation } from "@/lib/offline";
 import { displayHost } from "@/lib/views";
 
 const RESULT_LIMIT = 8;
@@ -84,7 +85,7 @@ function PaletteResults({
   const { bookmarks, flatFolders } = useLibrary();
   const navigate = useNavigate();
   const openDialog = useOpenDialog();
-  const addBookmark = useMutation(api.bookmarks.add);
+  const addBookmark = useOnlineMutation(api.bookmarks.add);
   const { folder: activeFolder } = useSearch({ strict: false });
   const currentFolderId = activeFolder as Id<"folders"> | undefined;
   const needle = query.trim().toLowerCase();

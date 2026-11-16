@@ -8,6 +8,7 @@ export default defineConfig({
       BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
       MCP_CONSENT_URL: "http://localhost:3000/connect",
       CONVEX_SITE_URL: "https://schnellbuch.convex.site",
+      SIGNUP_ALLOWED_EMAILS: "Owner@Example.com, @family.test",
     },
     server: { deps: { inline: ["convex-test"] } },
   },

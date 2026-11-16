@@ -8,10 +8,16 @@ import {
 } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import type { ConvexReactClient } from "convex/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { authClient } from "@/lib/auth-client";
 import { getToken } from "@/lib/auth-server";
+import { recallLastUser } from "@/lib/mirror-store";
+import {
+  isOffline,
+  registerServiceWorker,
+  useWatchConnection,
+} from "@/lib/offline";
 import appCss from "../styles.css?url";
 
 const fetchToken = createServerFn({ method: "GET" }).handler(
@@ -38,7 +44,16 @@ export const Route = createRootRouteWithContext<{
       { rel: "manifest", href: "/manifest.json" },
     ],
   }),
-  beforeLoad: async () => ({ token: await readToken() }),
+  beforeLoad: async () => {
+    const token = await readToken();
+    return {
+      token,
+      // Offline, the session can't be checked; the last user's mirrored
+      // library opens read-only instead.
+      offlineUserId:
+        token === null && isOffline() ? recallLastUser() : undefined,
+    };
+  },
   component: RootComponent,
   shellComponent: RootDocument,
   notFoundComponent: NotFound,
@@ -49,11 +64,25 @@ async function readToken() {
   if (inBrowser && browserToken !== undefined) {
     return browserToken;
   }
-  const token = await fetchToken();
+  let token: string | null;
+  try {
+    token = await fetchToken();
+  } catch (error) {
+    if (isOffline()) {
+      return null;
+    }
+    throw error;
+  }
   if (inBrowser) {
     browserToken = token;
   }
   return token;
+}
+
+function ConnectionWatcher() {
+  useWatchConnection();
+  useEffect(registerServiceWorker, []);
+  return null;
 }
 
 function RootComponent() {
@@ -64,6 +93,7 @@ function RootComponent() {
       client={convex}
       initialToken={token}
     >
+      <ConnectionWatcher />
       <Outlet />
       <Toaster position="bottom-center" />
     </ConvexBetterAuthProvider>

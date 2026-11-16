@@ -1,9 +1,8 @@
 import { describe, expect, test as it } from "vitest";
 import { createTest } from "../testing/convex";
+import { connectAgent } from "../testing/mcp";
 import { api } from "./_generated/api";
 import { mcp } from "./mcp";
-
-type TestClient = ReturnType<typeof createTest>;
 
 describe("MCP server", () => {
   it("has no risky tool setups", () => {
@@ -65,6 +64,33 @@ describe("MCP server", () => {
 
     expect(found.structuredContent.bookmarks).toEqual([
       expect.objectContaining({ title: "Convex Developer Hub" }),
+    ]);
+  });
+
+  it("list_bookmarks is newest saved first and reports each saved date", async () => {
+    const t = createTest();
+    const owner = await connectAgent(t, "owner");
+    await t.run((ctx) =>
+      ctx.db.insert("bookmarks", {
+        userId: "owner",
+        url: "https://example.com/old",
+        title: "Imported long ago",
+        savedAt: Date.UTC(2012, 4, 1),
+      })
+    );
+    await owner.call("add_bookmark", {
+      url: "https://example.com/new",
+      title: "Saved today",
+    });
+
+    const listed = await owner.call("list_bookmarks");
+
+    expect(listed.structuredContent.bookmarks).toEqual([
+      expect.objectContaining({ title: "Saved today" }),
+      expect.objectContaining({
+        title: "Imported long ago",
+        savedAt: "2012-05-01T00:00:00.000Z",
+      }),
     ]);
   });
 
@@ -136,29 +162,3 @@ describe("MCP server", () => {
     expect((await owner.request("list_folders")).status).toBe(401);
   });
 });
-
-async function connectAgent(t: TestClient, subject: string, scopes?: string[]) {
-  const { apiKey } = await t
-    .withIdentity({ subject })
-    .action(api.mcp.createApiKey, { name: "test", scopes });
-  const request = (name: string, args: Record<string, unknown> = {}) =>
-    t.fetch("/mcp", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        "content-type": "application/json",
-        "mcp-protocol-version": "2025-06-18",
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "tools/call",
-        params: { name, arguments: args },
-      }),
-    });
-  const call = async (name: string, args: Record<string, unknown> = {}) => {
-    const body = await (await request(name, args)).json();
-    return body.result;
-  };
-  return { request, call };
-}
