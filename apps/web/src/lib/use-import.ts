@@ -14,7 +14,13 @@ export function useImportBookmarks() {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".html,.htm,text/html";
+    // Attached (hidden) while the picker is open: some browsers ignore a
+    // click on a detached file input.
+    input.hidden = true;
+    document.body.append(input);
+    input.addEventListener("cancel", () => input.remove());
     input.addEventListener("change", async () => {
+      input.remove();
       const file = input.files?.[0];
       if (!file) {
         return;
