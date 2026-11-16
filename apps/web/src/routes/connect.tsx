@@ -176,15 +176,7 @@ function Approve({ requestId }: { requestId: string }) {
             userCode={request.userCode ?? ""}
           />
         ) : (
-          <p className="text-muted-foreground">
-            You'll be sent back to{" "}
-            <code>
-              {request.redirectUri
-                ? new URL(request.redirectUri).host
-                : "your agent"}
-            </code>
-            .
-          </p>
+          <RedirectNotice redirectUri={request.redirectUri} />
         )}
         <p className="text-destructive min-h-5" role="alert">
           {error}
@@ -206,6 +198,43 @@ function Approve({ requestId }: { requestId: string }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function RedirectNotice({ redirectUri }: { redirectUri?: string | null }) {
+  const target = redirectUri ? URL.parse(redirectUri) : null;
+  if (!target) {
+    return (
+      <p className="text-muted-foreground">You'll go back to your agent.</p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-muted-foreground">
+        You'll be sent back to{" "}
+        <code className="text-foreground font-semibold">{target.host}</code>.
+      </p>
+      <p className="text-muted-foreground text-xs break-all">
+        Full address: {target.href}
+      </p>
+      {isLoopback(target.hostname) ? (
+        <p className="bg-muted rounded-lg p-2">
+          This address is on your own computer. Any program running there can
+          receive this approval, so only allow it if you just started connecting
+          an agent on this machine.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+const LOOPBACK_HOSTS = new Set(["localhost", "[::1]", "::1"]);
+
+function isLoopback(hostname: string) {
+  return (
+    LOOPBACK_HOSTS.has(hostname) ||
+    hostname.endsWith(".localhost") ||
+    hostname.startsWith("127.")
   );
 }
 

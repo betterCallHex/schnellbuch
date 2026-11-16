@@ -21,6 +21,7 @@ export const undoStep = v.union(
     folderId: v.optional(v.id("folders")),
     savedAt: v.number(),
     faviconUrl: v.optional(v.string()),
+    urlFromAgent: v.optional(v.literal(true)),
   }),
   v.object({ kind: v.literal("removeBookmark"), bookmarkId: v.id("bookmarks") })
 );
@@ -42,6 +43,8 @@ export default defineSchema({
     // browser's original date. Optional only until `migrations:backfillSavedAt`
     // has run on every deployment; read it through `savedAtOf`.
     savedAt: v.optional(v.number()),
+    // The URL came from an agent, so the backend never fetches it.
+    urlFromAgent: v.optional(v.literal(true)),
     // Set by check_links: whether the page still answers.
     linkCheck: v.optional(
       v.object({

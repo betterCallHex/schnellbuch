@@ -21,10 +21,28 @@ const MAX_LIMIT = 200;
 // Bulk tools take at most this many items per call.
 export const MAX_BULK_ITEMS = 200;
 const MAX_DUPLICATE_GROUPS = 50;
+const MAX_QUERY_LENGTH = 200;
+
+const DEFAULT_FOLDER_LIMIT = 100;
 
 export const listFolders = agentQuery({
-  args: {},
-  handler: async (ctx) => (await readLibrary(ctx)).folders,
+  args: {
+    query: v.optional(v.string()),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, { query, limit, cursor }) => {
+    const needle = (query ?? "").trim().toLowerCase();
+    const matching = (await readLibrary(ctx)).folders.filter((folder) =>
+      folder.path.toLowerCase().includes(needle)
+    );
+    const start = offsetFrom(cursor);
+    const end = start + clampLimit(limit ?? DEFAULT_FOLDER_LIMIT);
+    return {
+      folders: matching.slice(start, end),
+      nextCursor: end < matching.length ? String(end) : null,
+    };
+  },
 });
 
 export const listBookmarks = agentQuery({
@@ -60,7 +78,11 @@ export const searchBookmarks = agentQuery({
   handler: async (ctx, { query, folderId, limit }) => {
     const library = await readLibrary(ctx);
     const scope = library.within(folderTarget(ctx, folderId));
-    return rankBookmarks(scope, query, clampLimit(limit)).map(library.bookmark);
+    return rankBookmarks(
+      scope,
+      query.slice(0, MAX_QUERY_LENGTH),
+      clampLimit(limit)
+    ).map(library.bookmark);
   },
 });
 
@@ -124,11 +146,15 @@ export const addBookmark = agentMutation({
     folderId: v.optional(v.string()),
   },
   handler: async (ctx, { url, title, folderId }) => {
-    const bookmarkId = await bookmarks.addBookmark(ctx, {
-      url,
-      title,
-      folderId: folderId ? folderIdFrom(ctx, folderId) : undefined,
-    });
+    const bookmarkId = await bookmarks.addBookmark(
+      ctx,
+      {
+        url,
+        title,
+        folderId: folderId ? folderIdFrom(ctx, folderId) : undefined,
+      },
+      "agent"
+    );
     return describeBookmark(ctx, bookmarkId);
   },
 });
@@ -142,12 +168,11 @@ export const updateBookmark = agentMutation({
   },
   handler: async (ctx, { bookmarkId, title, url, folderId }) => {
     const id = bookmarkIdFrom(ctx, bookmarkId);
-    await bookmarks.updateBookmark(ctx, {
-      bookmarkId: id,
-      title,
-      url,
-      folderId: folderTarget(ctx, folderId),
-    });
+    await bookmarks.updateBookmark(
+      ctx,
+      { bookmarkId: id, title, url, folderId: folderTarget(ctx, folderId) },
+      "agent"
+    );
     return describeBookmark(ctx, id);
   },
 });
@@ -329,6 +354,7 @@ export const deleteBookmarks = agentMutation({
         folderId: bookmark.folderId,
         savedAt: bookmarks.savedAtOf(bookmark),
         faviconUrl: bookmark.faviconUrl,
+        urlFromAgent: bookmark.urlFromAgent,
       }))
     );
     return { deletedCount: owned.length, changeId };
@@ -418,11 +444,11 @@ async function addUnlessSaved(
   }
   return {
     kind: "added",
-    bookmarkId: await bookmarks.addBookmark(ctx, {
-      url: normalized,
-      title,
-      folderId,
-    }),
+    bookmarkId: await bookmarks.addBookmark(
+      ctx,
+      { url: normalized, title, folderId },
+      "agent"
+    ),
   };
 }
 

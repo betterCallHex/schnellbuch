@@ -101,6 +101,7 @@ async function undoStepIn(
         folderId: folderOrTop(step.folderId),
         savedAt: step.savedAt,
         faviconUrl: step.faviconUrl,
+        urlFromAgent: step.urlFromAgent,
       });
       return;
     case "removeBookmark": {

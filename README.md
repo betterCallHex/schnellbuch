@@ -52,13 +52,15 @@ Tools:
 
 | Read (`bookmarks:read`) | Write (`bookmarks:write`) |
 |---|---|
-| `list_folders`: every folder with its path and bookmark count | `add_bookmark`, `update_bookmark`, `delete_bookmark` |
+| `list_folders`: folders with path and bookmark count, filtered by `query`, paged | `add_bookmark`, `update_bookmark`, `delete_bookmark` |
 | `list_bookmarks`: newest first, per folder, paged with `nextCursor` | `add_bookmarks`: up to 200 links at once, skipping ones already saved |
 | `search_bookmarks`: fuzzy, optionally inside one folder | `move_items`: up to 200 bookmarks and folders in one call |
 | `find_duplicates`: the same page saved under different URLs | `delete_bookmarks`: up to 200 at once |
 | `find_broken_links`: results of the last `check_links` | `undo_change`: reverse one bulk change |
 | `list_changes`: recent bulk changes with their IDs | `check_links`: check in the background whether pages still exist |
 | | `create_folder`, `update_folder`, `delete_folder` |
+
+SchnellBuch never opens a link an agent sends (no title fetch, no link check), so text an agent read can't make the server send data anywhere. Agents should pass the page title.
 
 Every `add_bookmarks`, `move_items` and `delete_bookmarks` call is one change set. Agents can reverse it with `undo_change`, and you can undo it in Settings → Recent agent changes.
 

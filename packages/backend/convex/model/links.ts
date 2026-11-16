@@ -31,6 +31,8 @@ export function classifyFailure(error: unknown): LinkStatus {
 // Links checked together by one action, in parallel.
 export const LINK_CHECK_BATCH_SIZE = 20;
 const BATCH_SPACING_MS = 5000;
+// A link is checked at most once an hour, however often an agent asks.
+const RECHECK_AFTER_MS = 60 * 60 * 1000;
 
 // Queues the least recently checked bookmarks (never checked first) for a
 // background check. Results land on each bookmark; find_broken_links reads
@@ -44,7 +46,14 @@ export async function queueLinkChecks(
 ) {
   const all = await listBookmarks(ctx);
   const inScope = await scopeTo(ctx, all, folderId);
+  const recently = Date.now() - RECHECK_AFTER_MS;
   const queue = inScope
+    // Agents' links are never fetched (see urlFromAgent).
+    .filter(
+      (bookmark) =>
+        !bookmark.urlFromAgent &&
+        (bookmark.linkCheck?.checkedAt ?? 0) < recently
+    )
     .toSorted(
       (first, second) =>
         (first.linkCheck?.checkedAt ?? 0) - (second.linkCheck?.checkedAt ?? 0)
@@ -69,12 +78,18 @@ export async function queueLinkChecks(
     queued: queue.length,
     message:
       queue.length === 0
-        ? "No bookmarks to check."
+        ? "No bookmarks to check: links are checked at most once an hour, and links an agent saved are never opened by SchnellBuch."
         : `Checking ${queue.length} links in the background. Call find_broken_links in about ${Math.max(seconds, 10)} seconds.`,
   };
 }
 
-async function scopeTo<Bookmark extends { folderId?: Id<"folders"> }>(
+async function scopeTo<
+  Bookmark extends {
+    folderId?: Id<"folders">;
+    urlFromAgent?: true;
+    linkCheck?: { checkedAt: number };
+  },
+>(
   ctx: UserMutationCtx,
   all: Bookmark[],
   folderId: Id<"folders"> | null | undefined

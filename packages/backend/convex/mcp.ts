@@ -30,15 +30,23 @@ export const mcp: McpServer = new McpServer(components.mcp, {
   tools: {
     list_folders: tool({
       description:
-        "Every folder with its ID, full path (like 'Dev / Convex'), parent and bookmark count.",
-      returns: v.object({ folders: v.array(folderResult) }),
+        "Folders with their ID, full path (like 'Dev / Convex'), parent and bookmark count, sorted by path. Pass query to find folders whose path contains those words. Returns at most `limit` (default 100, max 200); pass the returned nextCursor for more.",
+      args: {
+        query: v.optional(v.string()),
+        limit,
+        cursor: v.optional(nullableString),
+      },
+      returns: v.object({
+        folders: v.array(folderResult),
+        nextCursor: nullableString,
+      }),
       annotations: { readOnlyHint: true, ...LOCAL },
       scope: READ,
-      handler: async (ctx, _args, user) => ({
-        folders: await ctx.runQuery(internal.agent.listFolders, {
+      handler: (ctx, args, user) =>
+        ctx.runQuery(internal.agent.listFolders, {
           userId: user.userId,
+          ...args,
         }),
-      }),
     }),
     list_bookmarks: tool({
       description:
@@ -138,7 +146,7 @@ export const mcp: McpServer = new McpServer(components.mcp, {
     }),
     add_bookmark: tool({
       description:
-        "Save one link and return the saved bookmark. Without a title, the page's own title is fetched a few seconds later. Without folderId, it goes to the top level.",
+        "Save one link and return the saved bookmark. Pass the page's title: SchnellBuch never opens links an agent sends, so without one the link's host becomes the title. Without folderId, it goes to the top level.",
       args: {
         url: v.string(),
         title: v.optional(v.string()),
@@ -257,7 +265,7 @@ export const mcp: McpServer = new McpServer(components.mcp, {
     }),
     check_links: tool({
       description:
-        "Start checking, in the background, whether bookmarked pages still exist: the least recently checked first, up to `limit` (default 50, max 200), optionally only inside folderId. Read the results with find_broken_links a little later.",
+        "Start checking, in the background, whether bookmarked pages still exist: the least recently checked first, up to `limit` (default 50, max 200), optionally only inside folderId. Each link is checked at most once an hour, and links saved by agents are skipped. Read the results with find_broken_links a little later.",
       args: { folderId: folderFilter, limit },
       returns: v.object({ queued: v.number(), message: v.string() }),
       annotations: { destructiveHint: false, idempotentHint: true },

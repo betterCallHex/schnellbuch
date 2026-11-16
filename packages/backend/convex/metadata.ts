@@ -5,6 +5,7 @@ import {
   internalMutation,
   internalQuery,
 } from "./_generated/server";
+import { MAX_TITLE_LENGTH } from "./model/bookmarks";
 import {
   defaultFaviconUrl,
   type PageMetadata,
@@ -30,7 +31,7 @@ export const fetchMetadata = internalAction({
       bookmarkId,
       url: bookmark.url,
       faviconUrl: metadata.faviconUrl,
-      title: keepTitle ? undefined : metadata.title,
+      title: keepTitle ? undefined : metadata.title?.slice(0, MAX_TITLE_LENGTH),
     });
   },
 });

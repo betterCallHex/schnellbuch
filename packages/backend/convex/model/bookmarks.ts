@@ -22,6 +22,14 @@ export const updateBookmarkArgs = {
 
 export const deleteBookmarkArgs = { bookmarkId: v.id("bookmarks") };
 
+export const MAX_TITLE_LENGTH = 1000;
+
+// Who chose the URL. The backend fetches pages the user saved (for the
+// title, the icon and link checks) but never a URL an agent chose: an agent
+// steered by text it read could otherwise make SchnellBuch send data to any
+// address hidden in a link.
+type UrlSource = "user" | "agent";
+
 export async function listBookmarks(ctx: UserQueryCtx) {
   const bookmarks = await ctx.db
     .query("bookmarks")
@@ -53,22 +61,27 @@ export async function addBookmark(
     title?: string;
     folderId?: Id<"folders">;
     savedAt?: number;
-  }
+  },
+  urlSource: UrlSource = "user"
 ) {
   const normalizedUrl = normalizeUrl(url);
   if (folderId) {
     await getOwnedFolder(ctx, folderId);
   }
+  const trimmedTitle = title === undefined ? "" : limitTitle(title.trim());
   const bookmarkId = await ctx.db.insert("bookmarks", {
     userId: ctx.userId,
     url: normalizedUrl,
-    title: title?.trim() || placeholderTitle(normalizedUrl),
+    title: trimmedTitle || placeholderTitle(normalizedUrl),
     folderId,
     savedAt: savedAt ?? Date.now(),
+    ...(urlSource === "agent" ? { urlFromAgent: true } : {}),
   });
-  await ctx.scheduler.runAfter(0, internal.metadata.fetchMetadata, {
-    bookmarkId,
-  });
+  if (urlSource === "user") {
+    await ctx.scheduler.runAfter(0, internal.metadata.fetchMetadata, {
+      bookmarkId,
+    });
+  }
   return bookmarkId;
 }
 
@@ -84,14 +97,20 @@ export async function updateBookmark(
     url?: string;
     title?: string;
     folderId?: Id<"folders"> | null;
-  }
+  },
+  urlSource: UrlSource = "user"
 ) {
   await getOwnedBookmark(ctx, bookmarkId);
   if (folderId) {
     await getOwnedFolder(ctx, folderId);
   }
   await ctx.db.patch(bookmarkId, {
-    ...(url === undefined ? {} : { url: normalizeUrl(url) }),
+    ...(url === undefined
+      ? {}
+      : {
+          url: normalizeUrl(url),
+          urlFromAgent: urlSource === "agent" ? true : undefined,
+        }),
     ...(title === undefined ? {} : { title: cleanTitle(title) }),
     ...(folderId === undefined ? {} : { folderId: folderId ?? undefined }),
   });
@@ -121,5 +140,14 @@ function cleanTitle(title: string) {
   if (!trimmed) {
     throw new ConvexError("Title can't be empty.");
   }
-  return trimmed;
+  return limitTitle(trimmed);
+}
+
+function limitTitle(title: string) {
+  if (title.length > MAX_TITLE_LENGTH) {
+    throw new ConvexError(
+      `A title can be at most ${MAX_TITLE_LENGTH} characters.`
+    );
+  }
+  return title;
 }
