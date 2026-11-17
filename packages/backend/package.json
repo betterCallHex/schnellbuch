@@ -5,8 +5,10 @@
   "exports": {
     "./api": "./convex/_generated/api.js",
     "./data-model": "./convex/_generated/dataModel.d.ts",
+    "./duplicates": "./convex/model/duplicates.ts",
     "./folder-style": "./convex/model/style.ts",
     "./netscape": "./convex/model/netscape.ts",
+    "./page-bridge": "./shared/page-bridge.ts",
     "./search": "./convex/model/search.ts",
     "./tree": "./convex/model/tree.ts",
     "./url": "./convex/model/url.ts"
@@ -20,6 +22,8 @@
   "dependencies": {
     "@convex-dev/better-auth": "0.13.0",
     "@convex-dev/mcp": "0.1.0-alpha.7",
+    "@convex-dev/rate-limiter": "0.4.3",
+    "@convex-dev/workpool": "0.4.16",
     "@leeoniya/ufuzzy": "1.0.19",
     "@t3-oss/env-core": "0.13.11",
     "better-auth": "1.7.25",
