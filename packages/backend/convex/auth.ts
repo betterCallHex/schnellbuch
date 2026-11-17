@@ -2,6 +2,7 @@ import { createClient, type GenericCtx } from "@convex-dev/better-auth";
 import { convex } from "@convex-dev/better-auth/plugins";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
+import { emailOTP } from "better-auth/plugins/email-otp";
 import { components, internal } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
 import { query } from "./_generated/server";
@@ -12,14 +13,18 @@ import { isSignupAllowed, SIGNUPS_CLOSED } from "./model/signup";
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
-const PASSWORD_PATHS = new Set(["/sign-in/email", "/sign-up/email"]);
+const CODE_PATHS = new Set([
+  "/email-otp/send-verification-otp",
+  "/sign-in/email-otp",
+]);
+const CODE_LIFETIME_SECONDS = 5 * 60;
 
 export function createAuth(ctx: GenericCtx<DataModel>) {
   return betterAuth({
     baseURL: env.SITE_URL,
     secret: env.BETTER_AUTH_SECRET,
     database: authComponent.adapter(ctx),
-    emailAndPassword: { enabled: true, requireEmailVerification: false },
+    session: { freshAge: CODE_LIFETIME_SECONDS },
     user: {
       deleteUser: {
         enabled: true,
@@ -34,18 +39,41 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
         },
       },
     },
-    plugins: [convex({ authConfig })],
+    plugins: [
+      convex({ authConfig }),
+      emailOTP({
+        expiresIn: CODE_LIFETIME_SECONDS,
+        storeOTP: "hashed",
+        sendVerificationOTP: async ({ email, otp }, request) => {
+          const known =
+            await request?.context.internalAdapter.findUserByEmail(email);
+          if (
+            !(
+              (known || isSignupAllowed(email, env.SIGNUP_ALLOWED_EMAILS)) &&
+              "scheduler" in ctx
+            )
+          ) {
+            return;
+          }
+          await ctx.scheduler.runAfter(0, internal.email.sendSignInCode, {
+            email,
+            code: otp,
+          });
+        },
+      }),
+    ],
     hooks: {
-      // Password checks are slow on purpose; cap attempts per address so
-      // nobody can guess a password or tie up the backend.
+      // Each code request sends an email and each sign-in checks a code;
+      // cap both per address so nobody can flood an inbox, burn the email
+      // quota or guess a code.
       before: createAuthMiddleware(async (request) => {
-        if (!(PASSWORD_PATHS.has(request.path) && "runMutation" in ctx)) {
+        if (!(CODE_PATHS.has(request.path) && "runMutation" in ctx)) {
           return;
         }
         const email = String(request.body?.email ?? "")
           .trim()
           .toLowerCase();
-        const wait = await waitBefore(ctx, "passwordAttempt", email);
+        const wait = await waitBefore(ctx, "signInAttempt", email);
         if (wait !== undefined) {
           throw new APIError("TOO_MANY_REQUESTS", {
             code: "TOO_MANY_ATTEMPTS",

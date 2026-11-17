@@ -89,29 +89,25 @@ export async function seedAccounts(state: StackState) {
   state.seeded = true;
 }
 
+// A sign-in code issued by the backend directly, so no email is needed.
+export function signInCode(state: StackState, email: string) {
+  return JSON.parse(
+    convexCli(state, ["run", "account:signInCode", JSON.stringify({ email })])
+  ) as string;
+}
+
 // Through the web app's own /api/auth routes, as a browser would.
 async function signUpOrIn(state: StackState, account: Account) {
   const { web } = urls(state.ports);
-  const headers = { "content-type": "application/json", origin: web };
-  let response = await fetch(`${web}/api/auth/sign-up/email`, {
+  const response = await fetch(`${web}/api/auth/sign-in/email-otp`, {
     method: "POST",
-    headers,
+    headers: { "content-type": "application/json", origin: web },
     body: JSON.stringify({
       email: account.email,
-      password: account.password,
+      otp: signInCode(state, account.email),
       name: account.email.split("@")[0],
     }),
   });
-  if (!response.ok) {
-    response = await fetch(`${web}/api/auth/sign-in/email`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        email: account.email,
-        password: account.password,
-      }),
-    });
-  }
   if (!response.ok) {
     throw new Error(
       `Couldn't sign in ${account.email}: ${response.status} ${await response.text()}`

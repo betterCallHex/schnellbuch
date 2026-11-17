@@ -1,7 +1,6 @@
 import { useRouteContext } from "@tanstack/react-router";
 import { UserRoundIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,8 +23,7 @@ import { authClient } from "@/lib/auth-client";
 import { leaveDevice } from "@/lib/leave-device";
 import { tokenSubject } from "@/lib/mirror";
 import { useOffline } from "@/lib/offline";
-
-const MIN_PASSWORD_LENGTH = 8;
+import { CODE_LENGTH, signInCodeError } from "@/lib/sign-in-code";
 
 export function AccountSettings() {
   const offline = useOffline();
@@ -37,87 +35,72 @@ export function AccountSettings() {
           Account
         </CardTitle>
         <CardDescription>
-          Change your password, or delete your account and everything in it.
+          Delete your account and everything in it.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
-        <ChangePassword disabled={offline} />
         <DeleteAccount disabled={offline} />
       </CardContent>
     </Card>
   );
 }
 
-function ChangePassword({ disabled }: { disabled: boolean }) {
-  const [pending, setPending] = useState(false);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const fields = new FormData(form);
-    setPending(true);
-    const { error } = await authClient.changePassword({
-      currentPassword: String(fields.get("current-password")),
-      newPassword: String(fields.get("new-password")),
-      revokeOtherSessions: true,
-    });
-    setPending(false);
-    if (error) {
-      toast.error(error.message ?? "Your password didn't change. Try again.");
-      return;
-    }
-    form.reset();
-    toast.success("Password changed. Your other devices are signed out.");
-  }
-
-  return (
-    <form className="flex flex-col gap-3" method="post" onSubmit={submit}>
-      <span className="text-sm font-medium">Change password</span>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="current-password">Current password</Label>
-          <Input
-            autoComplete="current-password"
-            id="current-password"
-            name="current-password"
-            required
-            type="password"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="new-password">New password</Label>
-          <Input
-            autoComplete="new-password"
-            id="new-password"
-            minLength={MIN_PASSWORD_LENGTH}
-            name="new-password"
-            required
-            type="password"
-          />
-        </div>
-      </div>
-      <div>
-        <Button disabled={disabled || pending} type="submit" variant="outline">
-          Change password
-        </Button>
-      </div>
-    </form>
-  );
-}
-
 function DeleteAccount({ disabled }: { disabled: boolean }) {
   const [open, setOpen] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string>();
   const { token } = useRouteContext({ from: "__root__" });
+  const email = authClient.useSession().data?.user.email;
+
+  function openDialog(next: boolean) {
+    setOpen(next);
+    setCodeSent(false);
+    setError(undefined);
+  }
+
+  async function sendCode() {
+    if (!email) {
+      return;
+    }
+    setPending(true);
+    setError(undefined);
+    const { error: sendError } = await authClient.emailOtp.sendVerificationOtp({
+      email,
+      type: "sign-in",
+    });
+    setPending(false);
+    if (sendError) {
+      setError(signInCodeError(sendError));
+      return;
+    }
+    setCodeSent(true);
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const password = String(new FormData(event.currentTarget).get("password"));
+    if (!email) {
+      return;
+    }
+    if (!codeSent) {
+      await sendCode();
+      return;
+    }
+    const otp = String(new FormData(event.currentTarget).get("code")).trim();
     setPending(true);
-    const { error } = await authClient.deleteUser({ password });
-    if (error) {
+    setError(undefined);
+    const confirmed = await authClient.signIn.emailOtp({ email, otp });
+    if (confirmed.error) {
       setPending(false);
-      toast.error(error.message ?? "Your account wasn't deleted. Try again.");
+      setError(signInCodeError(confirmed.error));
+      return;
+    }
+    const { error: deleteError } = await authClient.deleteUser();
+    if (deleteError) {
+      setPending(false);
+      setError(
+        deleteError.message ?? "Your account wasn't deleted. Try again."
+      );
       return;
     }
     await leaveDevice(tokenSubject(token), () => Promise.resolve());
@@ -133,13 +116,13 @@ function DeleteAccount({ disabled }: { disabled: boolean }) {
       <div>
         <Button
           disabled={disabled}
-          onClick={() => setOpen(true)}
+          onClick={() => openDialog(true)}
           variant="destructive"
         >
           Delete account…
         </Button>
       </div>
-      <Dialog onOpenChange={setOpen} open={open}>
+      <Dialog onOpenChange={openDialog} open={open}>
         <DialogContent>
           <form className="flex flex-col gap-4" method="post" onSubmit={submit}>
             <DialogHeader>
@@ -147,29 +130,45 @@ function DeleteAccount({ disabled }: { disabled: boolean }) {
               <DialogDescription>
                 Your bookmarks, folders, history and agent connections are
                 deleted for good. This can't be undone.
+                {codeSent
+                  ? ` Enter the code we emailed to ${email}.`
+                  : " To confirm, we'll email you a code."}
               </DialogDescription>
             </DialogHeader>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="delete-password">Your password</Label>
-              <Input
-                autoComplete="current-password"
-                autoFocus
-                id="delete-password"
-                name="password"
-                required
-                type="password"
-              />
-            </div>
+            {codeSent ? (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="delete-code">Code</Label>
+                <Input
+                  autoComplete="one-time-code"
+                  autoFocus
+                  className="font-mono tracking-[0.3em]"
+                  id="delete-code"
+                  inputMode="numeric"
+                  maxLength={CODE_LENGTH}
+                  minLength={CODE_LENGTH}
+                  name="code"
+                  pattern="[0-9]*"
+                  required
+                />
+              </div>
+            ) : null}
+            <p className="text-destructive min-h-5 text-sm" role="alert">
+              {error}
+            </p>
             <DialogFooter>
               <Button
-                onClick={() => setOpen(false)}
+                onClick={() => openDialog(false)}
                 type="button"
                 variant="outline"
               >
                 Cancel
               </Button>
-              <Button disabled={pending} type="submit" variant="destructive">
-                Delete account
+              <Button
+                disabled={pending || !email}
+                type="submit"
+                variant="destructive"
+              >
+                {codeSent ? "Delete account" : "Email me a code"}
               </Button>
             </DialogFooter>
           </form>

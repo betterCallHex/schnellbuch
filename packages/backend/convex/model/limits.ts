@@ -2,11 +2,11 @@ import { HOUR, MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
 import { ConvexError } from "convex/values";
 import { components } from "../_generated/api";
 
-// Limits on things that cost real work: password checks (slow on purpose),
+// Limits on things that cost real work: sign-in code emails and checks,
 // imports and background link checks.
 export const rateLimiter = new RateLimiter(components.rateLimiter, {
-  // Sign-in and sign-up attempts per email address.
-  passwordAttempt: {
+  // Sign-in code requests and checks per email address.
+  signInAttempt: {
     kind: "token bucket",
     rate: 10,
     period: 15 * MINUTE,
@@ -16,7 +16,7 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   checkLinks: { kind: "token bucket", rate: 20, period: HOUR, capacity: 5 },
 });
 
-type LimitName = "passwordAttempt" | "importFile" | "checkLinks";
+type LimitName = "signInAttempt" | "importFile" | "checkLinks";
 type LimitCtx = Parameters<typeof rateLimiter.limit>[0];
 
 // How long until the limit lets this through again, or undefined if it
@@ -35,7 +35,7 @@ export function tryAgainIn(retryAfterMs: number) {
 
 export async function enforceLimit(
   ctx: LimitCtx,
-  name: Exclude<LimitName, "passwordAttempt">,
+  name: Exclude<LimitName, "signInAttempt">,
   key: string,
   what: string
 ) {
