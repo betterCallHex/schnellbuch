@@ -10,6 +10,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { ConvexReactClient } from "convex/react";
 import { type ReactNode, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { env } from "@/env";
 import { authClient } from "@/lib/auth-client";
 import { getToken } from "@/lib/auth-server";
 import { recallLastUser } from "@/lib/mirror-store";
@@ -18,6 +19,7 @@ import {
   registerServiceWorker,
   useWatchConnection,
 } from "@/lib/offline";
+import { securityHeaders } from "@/lib/security-headers";
 import appCss from "../styles.css?url";
 
 const fetchToken = createServerFn({ method: "GET" }).handler(
@@ -44,6 +46,7 @@ export const Route = createRootRouteWithContext<{
       { rel: "manifest", href: "/manifest.json" },
     ],
   }),
+  headers: () => securityHeaders(env.VITE_CONVEX_URL, env.VITE_CONVEX_SITE_URL),
   beforeLoad: async () => {
     const token = await readToken();
     return {

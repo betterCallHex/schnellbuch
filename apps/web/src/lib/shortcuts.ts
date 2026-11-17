@@ -23,7 +23,7 @@ import {
   useLibraryEdits,
 } from "@/lib/library-edits";
 import { looksLikeLink } from "@/lib/link";
-import type { LibraryItem } from "@/lib/selection";
+import { itemsLabel, type LibraryItem } from "@/lib/selection";
 
 const EDITABLE = "input, textarea, select, [contenteditable='true']";
 
@@ -35,6 +35,7 @@ export const SHORTCUTS = {
   paste: "Mod+V",
   goUp: "Mod+ArrowUp",
   palette: "Mod+K",
+  reveal: "Mod+Enter",
 } as const;
 
 export function shortcutLabel(
@@ -51,17 +52,25 @@ export function useEditHistoryShortcuts() {
   useHotkey(SHORTCUTS.redo, redoLastEdit, { ignoreInputs: true });
 }
 
-export async function putOnClipboard(entry: LibraryItem, mode: Clip["mode"]) {
-  const { item, text } = clipboardContent(entry);
+export async function putOnClipboard(
+  entries: LibraryItem[],
+  mode: Clip["mode"]
+) {
+  if (entries.length === 0) {
+    return;
+  }
+  const items = entries.map(clipboardItem);
+  const text = entries.map(clipboardText).join("\n");
   try {
     await navigator.clipboard.writeText(text);
   } catch {
     toast.error("SchnellBuch can't use the clipboard in this browser.");
     return;
   }
-  hold({ item, text, mode });
+  hold({ items, text, mode });
   const paste = shortcutLabel(SHORTCUTS.paste);
-  toast(mode === "copy" ? `Copied “${item.name}”` : `Cut “${item.name}”`, {
+  const what = itemsLabel(items);
+  toast(mode === "copy" ? `Copied ${what}` : `Cut ${what}`, {
     id: EDIT_TOAST,
     description:
       mode === "copy"
@@ -74,26 +83,32 @@ export function usePasteClip(folderId: Id<"folders"> | undefined) {
   const edits = useLibraryEdits();
   const { bookmarks, flatFolders } = useLibrary();
 
-  return function pasteClip(clip: Clip) {
+  return async function pasteClip(clip: Clip) {
     const target = folderId ?? null;
-    if (clip.item.kind === "bookmark") {
-      const id = liveId(clip.item.id);
-      const bookmark = bookmarks.find((candidate) => candidate._id === id);
-      if (!bookmark) {
-        return Promise.resolve(gone(clip));
+    const found = clip.items.map((item): LibraryItem | undefined => {
+      if (item.kind === "bookmark") {
+        const id = liveId(item.id);
+        const bookmark = bookmarks.find((candidate) => candidate._id === id);
+        return bookmark && { kind: "bookmark", bookmark };
       }
-      return clip.mode === "cut"
-        ? finishCut(edits.moveBookmark(bookmark, target))
-        : edits.pasteBookmarkCopy(bookmark, target);
+      const id = liveId(item.id);
+      const folder = flatFolders.find((candidate) => candidate._id === id);
+      return folder && { kind: "folder", folder };
+    });
+    const items = found.filter((item) => item !== undefined);
+    if (items.length === 0) {
+      hold(undefined);
+      toast.error(`${itemsLabel(clip.items)} no longer exists.`);
+      return false;
     }
-    const id = liveId(clip.item.id);
-    const folder = flatFolders.find((candidate) => candidate._id === id);
-    if (!folder) {
-      return Promise.resolve(gone(clip));
+    if (clip.mode === "copy") {
+      return edits.pasteCopies(items, target);
     }
-    return clip.mode === "cut"
-      ? finishCut(edits.moveFolder(folder, target))
-      : edits.pasteFolderCopy(folder, target);
+    const moved = await edits.moveItems(items, target);
+    if (moved) {
+      hold(undefined);
+    }
+    return moved;
   };
 }
 
@@ -116,9 +131,7 @@ export function usePaste(folderId: Id<"folders"> | undefined) {
       return;
     }
     event.preventDefault();
-    if (await edits.addBookmark({ url: text, folderId })) {
-      toast.success("Bookmark saved");
-    }
+    await edits.addBookmark({ url: text, folderId });
   });
 
   useEffect(() => {
@@ -140,29 +153,14 @@ export function useGoUpShortcut(
   );
 }
 
-function clipboardContent(entry: LibraryItem): {
-  item: ClipboardItem;
-  text: string;
-} {
-  if (entry.kind === "folder") {
-    const { _id, name } = entry.folder;
-    return { item: { kind: "folder", id: _id, name }, text: name };
-  }
-  const { _id, title, url } = entry.bookmark;
-  return { item: { kind: "bookmark", id: _id, name: title }, text: url };
+function clipboardItem(entry: LibraryItem): ClipboardItem {
+  return entry.kind === "folder"
+    ? { kind: "folder", id: entry.folder._id, name: entry.folder.name }
+    : { kind: "bookmark", id: entry.bookmark._id, name: entry.bookmark.title };
 }
 
-async function finishCut(moved: Promise<boolean>) {
-  if (await moved) {
-    hold(undefined);
-  }
-  return moved;
-}
-
-function gone(clip: Clip) {
-  hold(undefined);
-  toast.error(`“${clip.item.name}” no longer exists.`);
-  return false;
+function clipboardText(entry: LibraryItem) {
+  return entry.kind === "folder" ? entry.folder.name : entry.bookmark.url;
 }
 
 function isEditing(target: EventTarget | null) {

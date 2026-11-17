@@ -5,11 +5,13 @@ import { type Clip, claimsPaste } from "./clipboard";
 const copiedBookmark: Clip = {
   mode: "copy",
   text: "https://docs.convex.dev",
-  item: {
-    kind: "bookmark",
-    id: "b1" as Id<"bookmarks">,
-    name: "Convex docs",
-  },
+  items: [
+    {
+      kind: "bookmark",
+      id: "b1" as Id<"bookmarks">,
+      name: "Convex docs",
+    },
+  ],
 };
 
 describe("claimsPaste", () => {

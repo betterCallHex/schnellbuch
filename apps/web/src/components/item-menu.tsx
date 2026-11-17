@@ -16,7 +16,7 @@ import {
   useLibrary,
 } from "@/lib/library";
 import { useLibraryEdits } from "@/lib/library-edits";
-import type { LibraryItem } from "@/lib/selection";
+import { itemsLabel, type LibraryItem } from "@/lib/selection";
 import { putOnClipboard, SHORTCUTS, shortcutLabel } from "@/lib/shortcuts";
 
 export function BookmarkMenu({
@@ -107,17 +107,69 @@ export function FolderMenu({
   );
 }
 
+// The menu of a tile that's one of several selected: it acts on them all.
+export function SelectionMenu({ items }: { items: LibraryItem[] }) {
+  const openDialog = useOpenDialog();
+  const edits = useLibraryEdits();
+  const label = itemsLabel(
+    items.map((item) => ({
+      name: item.kind === "folder" ? item.folder.name : item.bookmark.title,
+    }))
+  );
+  const folders = items.flatMap((item) =>
+    item.kind === "folder" ? [item.folder] : []
+  );
+  const blockedIds = new Set(
+    flattenFolderTree(folders).map((entry) => entry._id)
+  );
+
+  return (
+    <ContextMenuContent className="w-52">
+      <MoveToMenu
+        blockedIds={blockedIds}
+        label={`Move ${label} to`}
+        onMove={(folderId) => edits.moveItems(items, folderId)}
+      />
+      <ContextMenuSeparator />
+      <ContextMenuItem onClick={() => putOnClipboard(items, "cut")}>
+        Cut {label}
+        <ContextMenuShortcut>
+          {shortcutLabel(SHORTCUTS.cut)}
+        </ContextMenuShortcut>
+      </ContextMenuItem>
+      <ContextMenuItem onClick={() => putOnClipboard(items, "copy")}>
+        Copy {label}
+        <ContextMenuShortcut>
+          {shortcutLabel(SHORTCUTS.copy)}
+        </ContextMenuShortcut>
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem
+        onClick={() =>
+          folders.length > 0
+            ? openDialog({ kind: "delete-items", items })
+            : edits.deleteItems(items)
+        }
+        variant="destructive"
+      >
+        Delete {label}
+        <ContextMenuShortcut>⌘⌫</ContextMenuShortcut>
+      </ContextMenuItem>
+    </ContextMenuContent>
+  );
+}
+
 function ClipboardItems({ item }: { item: LibraryItem }) {
   return (
     <>
       <ContextMenuSeparator />
-      <ContextMenuItem onClick={() => putOnClipboard(item, "cut")}>
+      <ContextMenuItem onClick={() => putOnClipboard([item], "cut")}>
         Cut
         <ContextMenuShortcut>
           {shortcutLabel(SHORTCUTS.cut)}
         </ContextMenuShortcut>
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => putOnClipboard(item, "copy")}>
+      <ContextMenuItem onClick={() => putOnClipboard([item], "copy")}>
         Copy
         <ContextMenuShortcut>
           {shortcutLabel(SHORTCUTS.copy)}
@@ -131,19 +183,21 @@ function ClipboardItems({ item }: { item: LibraryItem }) {
 function MoveToMenu({
   currentFolderId,
   blockedIds,
+  label = "Move to",
   onMove,
 }: {
-  currentFolderId: Id<"folders"> | undefined;
+  currentFolderId?: Id<"folders">;
   blockedIds?: Set<string>;
+  label?: string;
   onMove: (folderId: Id<"folders"> | null) => void;
 }) {
   const { flatFolders } = useLibrary();
   return (
     <ContextMenuSub>
-      <ContextMenuSubTrigger>Move to</ContextMenuSubTrigger>
+      <ContextMenuSubTrigger>{label}</ContextMenuSubTrigger>
       <ContextMenuSubContent className="max-h-80 overflow-y-auto">
         <ContextMenuItem
-          disabled={currentFolderId === undefined}
+          disabled={label === "Move to" && currentFolderId === undefined}
           onClick={() => onMove(null)}
         >
           Bookmarks

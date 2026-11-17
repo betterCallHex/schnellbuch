@@ -3,9 +3,10 @@ import type {
   FolderColor,
   FolderMark,
 } from "@schnellbuch/backend/folder-style";
+import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useStore } from "zustand";
-import { errorMessage, succeeded } from "@/lib/errors";
+import { errorMessage } from "@/lib/errors";
 import {
   createHistory,
   type HistoryEntry,
@@ -16,10 +17,12 @@ import {
   type BookmarkEntry,
   type FolderEntry,
   type LibraryMutations,
+  useLibrary,
   useLibraryMutations,
 } from "@/lib/library";
 import { syncedId } from "@/lib/offline-queue-store";
-import { displayHost } from "@/lib/views";
+import { itemsLabel, type LibraryItem } from "@/lib/selection";
+import { displayHost, findSaved } from "@/lib/views";
 
 type FolderId = Id<"folders">;
 type BookmarkId = Id<"bookmarks">;
@@ -31,8 +34,15 @@ interface FolderStyle {
 
 interface BookmarkFields {
   folderId: FolderId | null;
+  note: string;
   title: string;
   url: string;
+}
+
+// One edit: how to make it and how to take it back.
+interface Step {
+  apply: () => Promise<unknown>;
+  revert: () => Promise<unknown>;
 }
 
 export const EDIT_TOAST = "library-edit";
@@ -60,10 +70,146 @@ export function liveId<ItemId extends string>(id: ItemId) {
 
 export function useLibraryEdits() {
   const mutations = useLibraryMutations();
+  const { bookmarks, flatFolders } = useLibrary();
+  const navigate = useNavigate();
+  const steps = editSteps(mutations);
+  const bookmarkIdsIn = (folderId: FolderId) =>
+    bookmarks
+      .filter((bookmark) => bookmark.folderId === folderId)
+      .map((bookmark) => bookmark._id);
+
+  function showExisting(bookmark: BookmarkEntry) {
+    const path = bookmark.folderId
+      ? flatFolders.find((folder) => folder._id === bookmark.folderId)?.path
+      : undefined;
+    toast(`Already saved in ${path ?? "Bookmarks"}`, {
+      id: EDIT_TOAST,
+      description: bookmark.title,
+      action: {
+        label: "Show",
+        onClick: () =>
+          navigate({
+            to: "/",
+            search: { folder: bookmark.folderId, select: bookmark._id },
+          }),
+      },
+    });
+  }
+
   return {
-    ...bookmarkEdits(mutations),
-    ...folderEdits(mutations),
+    // Saves a link unless it's already saved, in which case it says where.
+    // True when the link is in the library afterwards.
+    async addBookmark(fields: {
+      url: string;
+      title?: string;
+      note?: string;
+      folderId?: FolderId;
+    }) {
+      const existing = findSaved(bookmarks, fields.url);
+      if (existing) {
+        showExisting(existing);
+        return true;
+      }
+      const saved = await perform(
+        `Add “${fields.title || displayHost(fields.url)}”`,
+        steps.addBookmark(fields)
+      );
+      if (saved) {
+        toast.success("Bookmark saved", { id: EDIT_TOAST });
+      }
+      return saved;
+    },
+    editBookmark: (bookmark: BookmarkEntry, fields: BookmarkFields) =>
+      perform(`Edit “${bookmark.title}”`, steps.editBookmark(bookmark, fields)),
+    moveBookmark: (bookmark: BookmarkEntry, folderId: FolderId | null) =>
+      performSteps(
+        `Move “${bookmark.title}”`,
+        [steps.moveBookmark(bookmark, folderId)].filter(isStep)
+      ),
+    async deleteBookmark(bookmark: BookmarkEntry) {
+      const deleted = await perform(
+        `Delete “${bookmark.title}”`,
+        steps.deleteBookmark(bookmark)
+      );
+      if (deleted) {
+        announceWithUndo("Bookmark deleted");
+      }
+      return deleted;
+    },
+    createFolder: (fields: { name: string; parentId?: FolderId }) =>
+      perform(`New folder “${fields.name.trim()}”`, steps.createFolder(fields)),
+    renameFolder(folder: FolderEntry, name: string) {
+      if (name.trim() === folder.name) {
+        return Promise.resolve(true);
+      }
+      return perform(
+        `Rename “${folder.name}”`,
+        steps.renameFolder(folder, name)
+      );
+    },
+    styleFolder: (folder: FolderEntry, style: FolderStyle) =>
+      perform(`Customize “${folder.name}”`, steps.styleFolder(folder, style)),
+    moveFolder: (folder: FolderEntry, parentId: FolderId | null) =>
+      performSteps(
+        `Move “${folder.name}”`,
+        [steps.moveFolder(folder, parentId)].filter(isStep)
+      ),
+    async deleteFolder(folder: FolderEntry) {
+      const deleted = await perform(
+        `Delete “${folder.name}”`,
+        steps.deleteFolder(folder, bookmarkIdsIn(folder._id))
+      );
+      if (deleted) {
+        announceWithUndo("Folder deleted");
+      }
+      return deleted;
+    },
+    // Moves, deletes and pastes of a whole selection are one undo step.
+    moveItems(items: LibraryItem[], target: FolderId | null) {
+      const moves = items
+        .map((item) =>
+          item.kind === "bookmark"
+            ? steps.moveBookmark(item.bookmark, target)
+            : steps.moveFolder(item.folder, target)
+        )
+        .filter(isStep);
+      return performSteps(`Move ${labelOf(items)}`, moves);
+    },
+    async deleteItems(items: LibraryItem[]) {
+      const deleted = await performSteps(
+        `Delete ${labelOf(items)}`,
+        items.map((item) =>
+          item.kind === "bookmark"
+            ? steps.deleteBookmark(item.bookmark)
+            : steps.deleteFolder(item.folder, bookmarkIdsIn(item.folder._id))
+        )
+      );
+      if (deleted) {
+        announceWithUndo(
+          items.length === 1 ? "Deleted" : `${items.length} items deleted`
+        );
+      }
+      return deleted;
+    },
+    pasteCopies(items: LibraryItem[], target: FolderId | null) {
+      return performSteps(
+        `Paste ${labelOf(items)}`,
+        items.map((item) =>
+          item.kind === "bookmark"
+            ? steps.pasteBookmarkCopy(item.bookmark, target)
+            : steps.pasteFolderCopy(item.folder, target)
+        )
+      );
+    },
   };
+}
+
+function labelOf(items: LibraryItem[]) {
+  return itemsLabel(
+    items.map((item) => ({
+      name: item.kind === "folder" ? item.folder.name : item.bookmark.title,
+    }))
+  );
 }
 
 async function stepHistory(
@@ -85,149 +231,161 @@ function live<ItemId extends string>(id: ItemId): ItemId {
   return current === id ? id : live(current);
 }
 
-function bookmarkEdits({
+function isStep(step: Step | undefined): step is Step {
+  return step !== undefined;
+}
+
+function editSteps({
   addBookmark,
+  createFolder,
   duplicateBookmark,
+  duplicateFolder,
   removeBookmark,
+  removeFolder,
+  removeFolderWithContents,
   updateBookmark,
+  updateFolder,
 }: LibraryMutations) {
-  const setFields = (bookmarkId: BookmarkId, fields: BookmarkFields) => () =>
+  const setBookmark = (bookmarkId: BookmarkId, fields: BookmarkFields) => () =>
     updateBookmark({
       bookmarkId: live(bookmarkId),
       url: fields.url,
       title: fields.title,
+      note: fields.note,
       folderId: liveFolder(fields.folderId),
     });
-  const moveTo = (bookmarkId: BookmarkId, folderId: FolderId | null) => () =>
-    updateBookmark({
-      bookmarkId: live(bookmarkId),
-      folderId: liveFolder(folderId),
-    });
+  const moveBookmarkTo =
+    (bookmarkId: BookmarkId, folderId: FolderId | null) => () =>
+      updateBookmark({
+        bookmarkId: live(bookmarkId),
+        folderId: liveFolder(folderId),
+      });
+  const setFolder =
+    (
+      folderId: FolderId,
+      fields: {
+        name?: string;
+        parentId?: FolderId | null;
+      } & Partial<FolderStyle>
+    ) =>
+    () =>
+      updateFolder({
+        folderId: live(folderId),
+        ...fields,
+        ...(fields.parentId === undefined
+          ? {}
+          : { parentId: liveFolder(fields.parentId) }),
+      });
 
   return {
-    addBookmark(fields: { url: string; title?: string; folderId?: FolderId }) {
+    addBookmark(fields: {
+      url: string;
+      title?: string;
+      note?: string;
+      folderId?: FolderId;
+    }): Step {
       const created = recreatable(() =>
         addBookmark({ ...fields, folderId: liveOptional(fields.folderId) })
       );
-      return perform(
-        `Add “${fields.title || displayHost(fields.url)}”`,
-        created.create,
-        () => removeBookmark({ bookmarkId: created.current() })
-      );
+      return {
+        apply: created.create,
+        revert: () => removeBookmark({ bookmarkId: created.current() }),
+      };
     },
-    editBookmark(bookmark: BookmarkEntry, fields: BookmarkFields) {
-      return perform(
-        `Edit “${bookmark.title}”`,
-        setFields(bookmark._id, fields),
-        setFields(bookmark._id, {
+    editBookmark(bookmark: BookmarkEntry, fields: BookmarkFields): Step {
+      return {
+        apply: setBookmark(bookmark._id, fields),
+        revert: setBookmark(bookmark._id, {
           url: bookmark.url,
           title: bookmark.title,
+          note: bookmark.note ?? "",
           folderId: bookmark.folderId ?? null,
-        })
-      );
+        }),
+      };
     },
-    moveBookmark(bookmark: BookmarkEntry, folderId: FolderId | null) {
+    moveBookmark(
+      bookmark: BookmarkEntry,
+      folderId: FolderId | null
+    ): Step | undefined {
       const from = bookmark.folderId ?? null;
       if (from === folderId) {
-        return Promise.resolve(true);
+        return;
       }
-      return perform(
-        `Move “${bookmark.title}”`,
-        moveTo(bookmark._id, folderId),
-        moveTo(bookmark._id, from)
-      );
+      return {
+        apply: moveBookmarkTo(bookmark._id, folderId),
+        revert: moveBookmarkTo(bookmark._id, from),
+      };
     },
-    async deleteBookmark(bookmark: BookmarkEntry) {
+    deleteBookmark(bookmark: BookmarkEntry): Step {
       const restored = recreatable(
         () =>
           addBookmark({
             url: bookmark.url,
             title: bookmark.title,
+            note: bookmark.note,
             folderId: liveOptional(bookmark.folderId),
             savedAt: bookmark.savedAt ?? bookmark._creationTime,
           }),
         bookmark._id
       );
-      const deleted = await perform(
-        `Delete “${bookmark.title}”`,
-        () => removeBookmark({ bookmarkId: live(bookmark._id) }),
-        restored.create
-      );
-      if (deleted) {
-        announceWithUndo("Bookmark deleted");
-      }
-      return deleted;
+      return {
+        apply: () => removeBookmark({ bookmarkId: live(bookmark._id) }),
+        revert: restored.create,
+      };
     },
-    pasteBookmarkCopy(bookmark: BookmarkEntry, folderId: FolderId | null) {
+    pasteBookmarkCopy(
+      bookmark: BookmarkEntry,
+      folderId: FolderId | null
+    ): Step {
       const copy = recreatable(() =>
         duplicateBookmark({
           bookmarkId: live(bookmark._id),
           folderId: liveOptional(folderId ?? undefined),
         })
       );
-      return perform(`Paste “${bookmark.title}”`, copy.create, () =>
-        removeBookmark({ bookmarkId: copy.current() })
-      );
+      return {
+        apply: copy.create,
+        revert: () => removeBookmark({ bookmarkId: copy.current() }),
+      };
     },
-  };
-}
-
-function folderEdits({
-  createFolder,
-  duplicateFolder,
-  removeFolder,
-  removeFolderWithContents,
-  updateBookmark,
-  updateFolder,
-}: LibraryMutations) {
-  const rename = (folderId: FolderId, name: string) => () =>
-    updateFolder({ folderId: live(folderId), name });
-  const restyle = (folderId: FolderId, style: FolderStyle) => () =>
-    updateFolder({ folderId: live(folderId), ...style });
-  const moveTo = (folderId: FolderId, parentId: FolderId | null) => () =>
-    updateFolder({ folderId: live(folderId), parentId: liveFolder(parentId) });
-
-  return {
-    createFolder(fields: { name: string; parentId?: FolderId }) {
+    createFolder(fields: { name: string; parentId?: FolderId }): Step {
       const created = recreatable(() =>
         createFolder({ ...fields, parentId: liveOptional(fields.parentId) })
       );
-      return perform(`New folder “${fields.name.trim()}”`, created.create, () =>
-        removeFolder({ folderId: created.current() })
-      );
+      return {
+        apply: created.create,
+        revert: () => removeFolder({ folderId: created.current() }),
+      };
     },
-    renameFolder(folder: FolderEntry, name: string) {
-      if (name.trim() === folder.name) {
-        return Promise.resolve(true);
-      }
-      return perform(
-        `Rename “${folder.name}”`,
-        rename(folder._id, name),
-        rename(folder._id, folder.name)
-      );
+    renameFolder(folder: FolderEntry, name: string): Step {
+      return {
+        apply: setFolder(folder._id, { name }),
+        revert: setFolder(folder._id, { name: folder.name }),
+      };
     },
-    styleFolder(folder: FolderEntry, style: FolderStyle) {
-      return perform(
-        `Customize “${folder.name}”`,
-        restyle(folder._id, style),
-        restyle(folder._id, {
+    styleFolder(folder: FolderEntry, style: FolderStyle): Step {
+      return {
+        apply: setFolder(folder._id, style),
+        revert: setFolder(folder._id, {
           color: folder.color ?? null,
           mark: folder.mark ?? null,
-        })
-      );
+        }),
+      };
     },
-    moveFolder(folder: FolderEntry, parentId: FolderId | null) {
+    moveFolder(
+      folder: FolderEntry,
+      parentId: FolderId | null
+    ): Step | undefined {
       const from = folder.parentId ?? null;
       if (from === parentId || folder._id === parentId) {
-        return Promise.resolve(true);
+        return;
       }
-      return perform(
-        `Move “${folder.name}”`,
-        moveTo(folder._id, parentId),
-        moveTo(folder._id, from)
-      );
+      return {
+        apply: setFolder(folder._id, { parentId }),
+        revert: setFolder(folder._id, { parentId: from }),
+      };
     },
-    async deleteFolder(folder: FolderEntry, bookmarkIds: BookmarkId[]) {
+    deleteFolder(folder: FolderEntry, bookmarkIds: BookmarkId[]): Step {
       const restored = recreatable(
         () =>
           createFolder({
@@ -239,51 +397,73 @@ function folderEdits({
         folder._id
       );
       const childIds = folder.children.map((child) => child._id);
-      async function restore() {
-        const folderId = await restored.create();
-        await Promise.allSettled([
-          ...childIds.map((childId) =>
-            updateFolder({ folderId: live(childId), parentId: folderId })
-          ),
-          ...bookmarkIds.map((bookmarkId) =>
-            updateBookmark({ bookmarkId: live(bookmarkId), folderId })
-          ),
-        ]);
-      }
-      const deleted = await perform(
-        `Delete “${folder.name}”`,
-        () => removeFolder({ folderId: live(folder._id) }),
-        restore
-      );
-      if (deleted) {
-        announceWithUndo("Folder deleted");
-      }
-      return deleted;
+      return {
+        apply: () => removeFolder({ folderId: live(folder._id) }),
+        async revert() {
+          const folderId = await restored.create();
+          await Promise.allSettled([
+            ...childIds.map((childId) =>
+              updateFolder({ folderId: live(childId), parentId: folderId })
+            ),
+            ...bookmarkIds.map((bookmarkId) =>
+              updateBookmark({ bookmarkId: live(bookmarkId), folderId })
+            ),
+          ]);
+        },
+      };
     },
-    pasteFolderCopy(folder: FolderEntry, parentId: FolderId | null) {
+    pasteFolderCopy(folder: FolderEntry, parentId: FolderId | null): Step {
       const copy = recreatable(() =>
         duplicateFolder({
           folderId: live(folder._id),
           parentId: liveOptional(parentId ?? undefined),
         })
       );
-      return perform(`Paste “${folder.name}”`, copy.create, () =>
-        removeFolderWithContents({ folderId: copy.current() })
-      );
+      return {
+        apply: copy.create,
+        revert: () => removeFolderWithContents({ folderId: copy.current() }),
+      };
     },
   };
 }
 
-async function perform(
-  label: string,
-  apply: () => Promise<unknown>,
-  revert: () => Promise<unknown>
-) {
-  if (!(await succeeded(apply()))) {
-    return false;
+function perform(label: string, step: Step) {
+  return performSteps(label, [step]);
+}
+
+// Runs the steps in order and records the ones that worked as one undo
+// entry. True when every step worked (or there was nothing to do).
+async function performSteps(label: string, steps: Step[]) {
+  const done: Step[] = [];
+  let failure: unknown;
+  for (const step of steps) {
+    try {
+      // biome-ignore lint/performance/noAwaitInLoops: steps run in order, so a later one can rely on an earlier one
+      await step.apply();
+      done.push(step);
+    } catch (error) {
+      failure = error;
+      break;
+    }
   }
-  tabHistory.record({ label, undo: revert, redo: apply });
-  return true;
+  if (failure !== undefined) {
+    toast.error(errorMessage(failure), { id: EDIT_TOAST });
+  }
+  if (done.length > 0) {
+    tabHistory.record({
+      label,
+      undo: () => runInOrder(done.toReversed().map((step) => step.revert)),
+      redo: () => runInOrder(done.map((step) => step.apply)),
+    });
+  }
+  return failure === undefined;
+}
+
+async function runInOrder(work: (() => Promise<unknown>)[]) {
+  for (const next of work) {
+    // biome-ignore lint/performance/noAwaitInLoops: undo and redo replay steps in order
+    await next();
+  }
 }
 
 function recreatable<ItemId extends string>(

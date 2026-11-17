@@ -1,11 +1,17 @@
 import type { Id } from "@schnellbuch/backend/data-model";
-import { searchBookmarks } from "@schnellbuch/backend/search";
+import { searchBookmarks, searchFolders } from "@schnellbuch/backend/search";
 import { HotkeysProvider, useHotkey } from "@tanstack/react-hotkeys";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 
-import { FolderPlusIcon, HomeIcon, PlusIcon, SettingsIcon } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
+import {
+  FolderPlusIcon,
+  FolderSearchIcon,
+  HeartPulseIcon,
+  HomeIcon,
+  PlusIcon,
+  SettingsIcon,
+} from "lucide-react";
+import { type KeyboardEvent, useState } from "react";
 import { useOpenDialog } from "@/components/app-dialogs";
 import { Favicon } from "@/components/favicon";
 import { FolderGlyph } from "@/components/folder-glyph";
@@ -19,19 +25,42 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
-import { useLibrary } from "@/lib/library";
+import { type BookmarkEntry, useLibrary } from "@/lib/library";
 import { useLibraryEdits } from "@/lib/library-edits";
 import { looksLikeLink } from "@/lib/link";
-import { SHORTCUTS } from "@/lib/shortcuts";
+import { SHORTCUTS, shortcutLabel } from "@/lib/shortcuts";
 import { displayHost } from "@/lib/views";
 
 const RESULT_LIMIT = 8;
 
+const BOOKMARK_VALUE = "bookmark-";
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // The highlighted result, so ⌘↵ can show it in its folder.
+  const [highlighted, setHighlighted] = useState("");
+
+  const reveal = useReveal();
+  const { bookmarks } = useLibrary();
 
   useHotkey(SHORTCUTS.palette, () => setOpen(true));
+
+  // ⌘↵ shows the highlighted bookmark in its folder. Handled before cmdk,
+  // which would otherwise open it as it does on plain ↵.
+  function revealHighlighted(event: KeyboardEvent<HTMLDivElement>) {
+    if (!(event.key === "Enter" && (event.metaKey || event.ctrlKey))) {
+      return;
+    }
+    event.preventDefault();
+    const bookmark = bookmarks.find(
+      (candidate) => `${BOOKMARK_VALUE}${candidate._id}` === highlighted
+    );
+    if (bookmark) {
+      changeOpen(false);
+      reveal(bookmark);
+    }
+  }
 
   function changeOpen(next: boolean) {
     setOpen(next);
@@ -52,7 +81,12 @@ export function CommandPalette() {
           <ClosePaletteShortcut onClose={() => changeOpen(false)} />
         </HotkeysProvider>
       ) : null}
-      <Command shouldFilter={false}>
+      <Command
+        onKeyDown={revealHighlighted}
+        onValueChange={setHighlighted}
+        shouldFilter={false}
+        value={highlighted}
+      >
         <CommandInput
           onValueChange={setQuery}
           placeholder="Search or paste a link…"
@@ -71,6 +105,16 @@ function ClosePaletteShortcut({ onClose }: { onClose: () => void }) {
   return null;
 }
 
+// Opens a bookmark's folder with the bookmark selected.
+function useReveal() {
+  const navigate = useNavigate();
+  return (bookmark: BookmarkEntry) =>
+    navigate({
+      to: "/",
+      search: { folder: bookmark.folderId, select: bookmark._id },
+    });
+}
+
 function PaletteResults({
   query,
   onDone,
@@ -82,22 +126,19 @@ function PaletteResults({
   const navigate = useNavigate();
   const openDialog = useOpenDialog();
   const edits = useLibraryEdits();
+  const reveal = useReveal();
   const { folder: activeFolder } = useSearch({ strict: false });
   const currentFolderId = activeFolder as Id<"folders"> | undefined;
-  const needle = query.trim().toLowerCase();
+  const needle = query.trim();
   const matchingBookmarks = searchBookmarks(bookmarks, query, RESULT_LIMIT);
-  const matchingFolders = flatFolders
-    .filter((folder) => folder.path.toLowerCase().includes(needle))
-    .slice(0, RESULT_LIMIT);
+  const matchingFolders = searchFolders(flatFolders, query, RESULT_LIMIT);
   const pathById = new Map(
     flatFolders.map((folder) => [folder._id, folder.path])
   );
 
   async function saveLink() {
     onDone();
-    if (await edits.addBookmark({ url: query, folderId: currentFolderId })) {
-      toast.success("Bookmark saved");
-    }
+    await edits.addBookmark({ url: query, folderId: currentFolderId });
   }
 
   function run(action: () => void) {
@@ -127,7 +168,7 @@ function PaletteResults({
                   window.open(bookmark.url, "_blank", "noopener,noreferrer")
                 )
               }
-              value={`bookmark-${bookmark._id}`}
+              value={`${BOOKMARK_VALUE}${bookmark._id}`}
             >
               <Favicon src={bookmark.faviconUrl} />
               <span className="min-w-0 flex-1 truncate">{bookmark.title}</span>
@@ -136,6 +177,19 @@ function PaletteResults({
                   ? pathById.get(bookmark.folderId)
                   : displayHost(bookmark.url)}
               </span>
+              <button
+                aria-label={`Show “${bookmark.title}” in its folder`}
+                className="text-muted-foreground hover:text-foreground -my-1 shrink-0 rounded p-1"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  run(() => reveal(bookmark));
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+                title={`Show in folder (${shortcutLabel(SHORTCUTS.reveal)})`}
+                type="button"
+              >
+                <FolderSearchIcon className="size-4" />
+              </button>
             </CommandItem>
           ))}
         </CommandGroup>
@@ -191,6 +245,13 @@ function PaletteResults({
         >
           <HomeIcon />
           Go to Bookmarks
+        </CommandItem>
+        <CommandItem
+          onSelect={() => run(() => navigate({ to: "/health" }))}
+          value="health"
+        >
+          <HeartPulseIcon />
+          Library health
         </CommandItem>
         <CommandItem
           onSelect={() => run(() => navigate({ to: "/settings" }))}

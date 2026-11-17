@@ -12,6 +12,7 @@ import {
   DownloadIcon,
   EllipsisIcon,
   FolderPlusIcon,
+  HeartPulseIcon,
   LogOutIcon,
   PlusIcon,
   SearchIcon,
@@ -32,13 +33,22 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ViewMenu, ViewOptions } from "@/components/view-menu";
 import { authClient } from "@/lib/auth-client";
+import { leaveDevice } from "@/lib/leave-device";
 import { tokenSubject } from "@/lib/mirror";
-import { clearOfflineData, useOffline } from "@/lib/offline";
-import { discardQueue, queuedEditCount } from "@/lib/offline-queue-store";
+import { useOffline } from "@/lib/offline";
+import { queuedEditCount } from "@/lib/offline-queue-store";
 import { useExportLibrary } from "@/lib/use-export";
 
-export function Toolbar({ children }: { children: ReactNode }) {
+export function Toolbar({
+  children,
+  view = false,
+}: {
+  children: ReactNode;
+  // Whether the page shows a folder, so icons or list and the sort apply.
+  view?: boolean;
+}) {
   const router = useRouter();
   const canGoBack = useCanGoBack();
   return (
@@ -65,6 +75,7 @@ export function Toolbar({ children }: { children: ReactNode }) {
         </Button>
       </div>
       <div className="min-w-0 flex-1">{children}</div>
+      {view ? <ViewMenu /> : null}
       <EditMenu />
       <NewMenu />
       <Button
@@ -76,7 +87,7 @@ export function Toolbar({ children }: { children: ReactNode }) {
       >
         <SearchIcon />
       </Button>
-      <MoreMenu />
+      <MoreMenu view={view} />
     </header>
   );
 }
@@ -128,7 +139,7 @@ function NewMenu() {
   );
 }
 
-function MoreMenu() {
+function MoreMenu({ view }: { view: boolean }) {
   const navigate = useNavigate();
   const exportLibrary = useExportLibrary();
   const [importing, setImporting] = useState(false);
@@ -137,12 +148,8 @@ function MoreMenu() {
 
   const userId = tokenSubject(token) ?? offlineUserId;
 
-  async function signOut() {
-    if (userId) {
-      await Promise.all([clearOfflineData(userId), discardQueue(userId)]);
-    }
-    await authClient.signOut();
-    window.location.assign("/sign-in");
+  function signOut() {
+    return leaveDevice(userId, () => authClient.signOut());
   }
 
   function confirmSignOut() {
@@ -177,6 +184,12 @@ function MoreMenu() {
         <EllipsisIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
+        {view ? (
+          <div className="sm:hidden">
+            <ViewOptions />
+            <DropdownMenuSeparator />
+          </div>
+        ) : null}
         <DropdownMenuItem disabled={offline} onClick={() => setImporting(true)}>
           <UploadIcon />
           Import bookmarks…
@@ -184,6 +197,10 @@ function MoreMenu() {
         <DropdownMenuItem onClick={exportLibrary}>
           <DownloadIcon />
           Export bookmarks
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate({ to: "/health" })}>
+          <HeartPulseIcon />
+          Library health
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => navigate({ to: "/settings" })}>
