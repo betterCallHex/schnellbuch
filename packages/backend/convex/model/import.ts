@@ -3,15 +3,14 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { UserMutationCtx, UserQueryCtx } from "../functions";
 import type { BookmarkFileSource, FileNode } from "./netscape";
+import { fetchPool } from "./pool";
 import { normalizeUrl, placeholderTitle } from "./url";
 
 // Items per mutation: well inside Convex's per-transaction read, write and
 // scheduling limits even when every bookmark checks for a duplicate.
 export const IMPORT_BATCH_SIZE = 250;
-// Favicon fetches are spread out so one import doesn't fire thousands of
-// requests at once.
-const FAVICON_SPACING_MS = 300;
 const MAX_TITLE_LENGTH = 1000;
+const MAX_NOTE_LENGTH = 4000;
 // An import still "running" after this long died without finishing.
 const STALE_IMPORT_MS = 15 * 60 * 1000;
 const ROOT_KEY = "root";
@@ -28,6 +27,7 @@ export const importItem = v.union(
     parentKey: v.string(),
     title: v.string(),
     url: v.string(),
+    note: v.optional(v.string()),
     addedAt: v.optional(v.number()),
   })
 );
@@ -46,6 +46,7 @@ export function flattenForImport(nodes: FileNode[]) {
           parentKey,
           title: node.title,
           url: node.url,
+          note: node.note,
           addedAt: node.addedAt,
         });
       } else {
@@ -115,6 +116,7 @@ export async function writeImportBatch(
   const record = await getOwnedImport(ctx, importId);
   const folderIds = new Map(Object.entries(parents));
   const counts = { imported: 0, duplicates: 0, nonWeb: 0, failed: 0 };
+  const added: Id<"bookmarks">[] = [];
   for (const item of items) {
     const parentId = folderIds.get(item.parentKey);
     if (!parentId) {
@@ -132,10 +134,17 @@ export async function writeImportBatch(
       );
       continue;
     }
-    const outcome = await importBookmark(ctx, item, parentId, {
-      faviconDelayMs: (record.imported + counts.imported) * FAVICON_SPACING_MS,
+    const outcome = await importBookmark(ctx, item, parentId);
+    counts[outcome.kind] += 1;
+    if (outcome.kind === "imported") {
+      added.push(outcome.bookmarkId);
+    }
+  }
+  // Titles and icons arrive later, one background batch per write batch.
+  if (added.length > 0) {
+    await fetchPool.enqueueAction(ctx, internal.metadata.fetchBatch, {
+      bookmarkIds: added,
     });
-    counts[outcome] += 1;
   }
   await ctx.db.patch(importId, {
     imported: record.imported + counts.imported,
@@ -178,21 +187,23 @@ export async function latestImport(ctx: UserQueryCtx) {
 async function importBookmark(
   ctx: UserMutationCtx,
   item: Extract<ImportItem, { kind: "bookmark" }>,
-  folderId: Id<"folders">,
-  { faviconDelayMs }: { faviconDelayMs: number }
-) {
+  folderId: Id<"folders">
+): Promise<
+  | { kind: "imported"; bookmarkId: Id<"bookmarks"> }
+  | { kind: "duplicates" | "nonWeb" | "failed" }
+> {
   let url: string;
   try {
     url = normalizeUrl(item.url);
   } catch {
-    return "nonWeb" as const;
+    return { kind: "nonWeb" };
   }
   const existing = await ctx.db
     .query("bookmarks")
     .withIndex("by_user_url", (q) => q.eq("userId", ctx.userId).eq("url", url))
     .first();
   if (existing) {
-    return "duplicates" as const;
+    return { kind: "duplicates" };
   }
   const title = cleanText(item.title);
   try {
@@ -200,17 +211,13 @@ async function importBookmark(
       userId: ctx.userId,
       url,
       title: title || placeholderTitle(url),
+      note: item.note?.trim().slice(0, MAX_NOTE_LENGTH) || undefined,
       folderId,
       savedAt: item.addedAt ?? Date.now(),
     });
-    await ctx.scheduler.runAfter(
-      faviconDelayMs,
-      internal.metadata.fetchMetadata,
-      { bookmarkId, keepTitle: title.length > 0 }
-    );
-    return "imported" as const;
+    return { kind: "imported", bookmarkId };
   } catch {
-    return "failed" as const;
+    return { kind: "failed" };
   }
 }
 

@@ -9,6 +9,8 @@ export interface FileBookmark {
   // Milliseconds since the epoch.
   addedAt?: number;
   kind: "bookmark";
+  // The <DD> description browsers keep with a bookmark.
+  note?: string;
   title: string;
   url: string;
 }
@@ -49,7 +51,7 @@ class NotABookmarkFileError extends ConvexError<string> {
 
 const DOCTYPE = /<!doctype\s+netscape-bookmark-file-1\s*>/iu;
 const TOKEN =
-  /<dl\b[^>]*>|<\/dl\s*>|<h3\b(?<folderAttributes>[^>]*)>(?<folderTitle>[\s\S]*?)<\/h3\s*>|<a\b(?<linkAttributes>[^>]*)>(?<linkTitle>[\s\S]*?)<\/a\s*>/giu;
+  /<dl\b[^>]*>|<\/dl\s*>|<h3\b(?<folderAttributes>[^>]*)>(?<folderTitle>[\s\S]*?)<\/h3\s*>|<a\b(?<linkAttributes>[^>]*)>(?<linkTitle>[\s\S]*?)<\/a\s*>|<dd\b[^>]*>(?<description>[^<]*)/giu;
 const TAG = /<[^>]*>/gu;
 const WHITESPACE_RUN = /\s+/gu;
 const SCHNELLBUCH_MARK = "<!-- Exported from SchnellBuch -->";
@@ -104,6 +106,15 @@ function readToken(
   }
   if (token.startsWith("</dl")) {
     state.stack.pop();
+    return;
+  }
+  if (groups.description !== undefined) {
+    // A description belongs to the bookmark just before it.
+    const last = current.children.at(-1);
+    const note = textOf(groups.description);
+    if (last?.kind === "bookmark" && note) {
+      last.note = note;
+    }
     return;
   }
   state.sawEntry = true;
@@ -168,6 +179,7 @@ function serializeNode(node: FileNode, depth: number): string[] {
   if (node.kind === "bookmark") {
     return [
       `${indent}<DT><A HREF="${escapeHtml(node.url)}"${addDate}>${escapeHtml(node.title)}</A>`,
+      ...(node.note ? [`${indent}<DD>${escapeHtml(node.note)}`] : []),
     ];
   }
   return [

@@ -1,12 +1,12 @@
-import { browser } from "wxt/browser";
-import { defineContentScript } from "wxt/utils/define-content-script";
-import { env } from "@/lib/env";
 import {
   type BookmarksReply,
   EXTENSION_CHANNEL,
   PAGE_CHANNEL,
   READ_BOOKMARKS,
-} from "@/lib/page-bridge";
+} from "@schnellbuch/backend/page-bridge";
+import { browser } from "wxt/browser";
+import { defineContentScript } from "wxt/utils/define-content-script";
+import { env } from "@/lib/env";
 import { isServerPage } from "@/lib/server-access";
 import { serverUrl } from "@/lib/settings";
 

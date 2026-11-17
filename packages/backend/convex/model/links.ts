@@ -3,7 +3,9 @@ import type { Id } from "../_generated/dataModel";
 import type { UserMutationCtx } from "../functions";
 import { listBookmarks } from "./bookmarks";
 import { listFolders } from "./folders";
-import { buildFolderTree, flattenFolderTree } from "./tree";
+import { enforceLimit } from "./limits";
+import { fetchPool } from "./pool";
+import { folderAndDescendants } from "./tree";
 
 export type LinkStatus = "ok" | "gone" | "unsure";
 
@@ -21,16 +23,24 @@ export function classifyResponse(httpStatus: number): LinkStatus {
   return httpStatus < HTTP_BAD_REQUEST ? "ok" : "unsure";
 }
 
-// A timeout may be a slow server; any other network failure (no DNS
-// record, refused connection, bad certificate) means the site is gone.
+// A timeout may be a slow server, and a private or looping address wasn't
+// checked at all; any other network failure (no DNS record, refused
+// connection, bad certificate) means the site is gone.
+const UNSURE_FAILURES = new Set([
+  "TimeoutError",
+  "AbortError",
+  "BlockedAddressError",
+]);
+
 export function classifyFailure(error: unknown): LinkStatus {
   const name = error instanceof Error ? error.name : "";
-  return name === "TimeoutError" || name === "AbortError" ? "unsure" : "gone";
+  return UNSURE_FAILURES.has(name) ? "unsure" : "gone";
 }
 
-// Links checked together by one action, in parallel.
+// Links checked together by one action, in parallel. The fetch pool runs a
+// few batches at a time.
 export const LINK_CHECK_BATCH_SIZE = 20;
-const BATCH_SPACING_MS = 5000;
+const SECONDS_PER_BATCH = 5;
 // A link is checked at most once an hour, however often an agent asks.
 const RECHECK_AFTER_MS = 60 * 60 * 1000;
 
@@ -44,6 +54,7 @@ export async function queueLinkChecks(
     limit,
   }: { folderId: Id<"folders"> | null | undefined; limit: number }
 ) {
+  await enforceLimit(ctx, "checkLinks", ctx.userId, "link checks");
   const all = await listBookmarks(ctx);
   const inScope = await scopeTo(ctx, all, folderId);
   const recently = Date.now() - RECHECK_AFTER_MS;
@@ -60,20 +71,20 @@ export async function queueLinkChecks(
     )
     .slice(0, limit)
     .map((bookmark) => bookmark._id);
-  for (let index = 0; index < queue.length; index += LINK_CHECK_BATCH_SIZE) {
-    // biome-ignore lint/performance/noAwaitInLoops: scheduling is a cheap write; batches are spaced in time
-    await ctx.scheduler.runAfter(
-      (index / LINK_CHECK_BATCH_SIZE) * BATCH_SPACING_MS,
-      internal.links.checkBatch,
-      {
-        userId: ctx.userId,
-        bookmarkIds: queue.slice(index, index + LINK_CHECK_BATCH_SIZE),
-      }
-    );
-  }
-  const seconds = Math.ceil(
-    (queue.length / LINK_CHECK_BATCH_SIZE) * (BATCH_SPACING_MS / 1000)
+  const batches = Array.from(
+    { length: Math.ceil(queue.length / LINK_CHECK_BATCH_SIZE) },
+    (_, index) =>
+      queue.slice(
+        index * LINK_CHECK_BATCH_SIZE,
+        (index + 1) * LINK_CHECK_BATCH_SIZE
+      )
   );
+  await fetchPool.enqueueActionBatch(
+    ctx,
+    internal.links.checkBatch,
+    batches.map((bookmarkIds) => ({ userId: ctx.userId, bookmarkIds }))
+  );
+  const seconds = batches.length * SECONDS_PER_BATCH;
   return {
     queued: queue.length,
     message:
@@ -100,12 +111,7 @@ async function scopeTo<
   if (folderId === null) {
     return all.filter((bookmark) => !bookmark.folderId);
   }
-  const node = flattenFolderTree(buildFolderTree(await listFolders(ctx))).find(
-    (folder) => folder._id === folderId
-  );
-  const inside = new Set(
-    node ? flattenFolderTree([node]).map((folder) => folder._id) : []
-  );
+  const inside = folderAndDescendants(await listFolders(ctx), folderId);
   return all.filter(
     (bookmark) => bookmark.folderId && inside.has(bookmark.folderId)
   );

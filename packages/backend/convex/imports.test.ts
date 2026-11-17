@@ -12,6 +12,7 @@ type TestClient = ReturnType<typeof createTest>;
 
 const DAY = new Date().toISOString().slice(0, "YYYY-MM-DD".length);
 const SECOND = 1000;
+const THIS_TESTS_SITES = /^https:\/\/[ab]\.example\.com\//u;
 
 afterEach(() => {
   vi.useRealTimers();
@@ -295,7 +296,7 @@ describe("import", () => {
     });
   });
 
-  it("site icons fill in afterwards, spaced out, without replacing imported titles", async () => {
+  it("titles and icons fill in afterwards, one page per site for icons, without replacing imported titles", async () => {
     vi.useFakeTimers();
     const fetched: string[] = [];
     vi.stubGlobal("fetch", (url: string) => {
@@ -310,39 +311,73 @@ describe("import", () => {
     const t = createTest();
     const owner = t.withIdentity({ subject: "owner" });
     const html = serializeBookmarkFile([
-      { kind: "bookmark", title: "My own name", url: "https://a.example.com" },
+      {
+        kind: "bookmark",
+        title: "My own name",
+        url: "https://a.example.com/1",
+      },
+      { kind: "bookmark", title: "Also named", url: "https://a.example.com/2" },
       { kind: "bookmark", title: "", url: "https://b.example.com" },
     ]);
 
     await owner.action(api.imports.start, { fileName: "x.html", html });
-    const scheduled = await t.run((ctx) =>
-      ctx.db.system.query("_scheduled_functions").collect()
-    );
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    const delays = scheduled.map(
-      (job) => job.scheduledTime - (scheduled[0]?.scheduledTime ?? 0)
-    );
-    expect(delays[1]).toBeGreaterThan(0);
     // Other tests' scheduled jobs can land here too; look only at ours.
-    expect(fetched).toEqual(
-      expect.arrayContaining([
-        "https://a.example.com/",
-        "https://b.example.com/",
-      ])
-    );
+    expect(
+      fetched.filter((url) => THIS_TESTS_SITES.test(url)).toSorted()
+    ).toEqual(["https://a.example.com/1", "https://b.example.com/"]);
     const bookmarks = await owner.query(api.bookmarks.list, {});
     expect(
       bookmarks.map(({ title, faviconUrl }) => ({ title, faviconUrl }))
     ).toEqual(
       expect.arrayContaining([
         { title: "My own name", faviconUrl: "https://a.example.com/icon.png" },
+        { title: "Also named", faviconUrl: "https://a.example.com/icon.png" },
         {
           title: "A page title from the web",
           faviconUrl: "https://b.example.com/icon.png",
         },
       ])
     );
+  });
+
+  it("notes travel with an export and come back on import", async () => {
+    const t = createTest();
+    const owner = t.withIdentity({ subject: "owner" });
+    await owner.mutation(api.bookmarks.add, {
+      url: "https://bun.sh",
+      title: "Bun",
+      note: "Fast <JS> runtime & friends",
+    });
+    const html = await owner.query(api.bookmarks.exportFile, {});
+
+    expect(html).toContain("<DD>Fast &lt;JS&gt; runtime &amp; friends");
+    await t
+      .withIdentity({ subject: "fresh" })
+      .action(api.imports.start, { fileName: "backup.html", html });
+
+    const [imported] = await t
+      .withIdentity({ subject: "fresh" })
+      .query(api.bookmarks.list, {});
+    expect(imported?.note).toBe("Fast <JS> runtime & friends");
+  });
+
+  it("a few imports in a row are fine, then they wait", async () => {
+    const t = createTest();
+    const owner = t.withIdentity({ subject: "owner" });
+    const html = serializeBookmarkFile([
+      { kind: "bookmark", title: "One", url: "https://one.example.com" },
+    ]);
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      // biome-ignore lint/performance/noAwaitInLoops: imports run one after another
+      await owner.action(api.imports.start, { fileName: "x.html", html });
+    }
+
+    await expect(
+      owner.action(api.imports.start, { fileName: "x.html", html })
+    ).rejects.toThrow("Too many imports in a short time.");
   });
 
   it("another user's library is never touched", async () => {

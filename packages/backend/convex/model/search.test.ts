@@ -1,5 +1,5 @@
 import { describe, expect, test as it } from "vitest";
-import { searchBookmarks } from "./search";
+import { searchBookmarks, searchFolders } from "./search";
 
 const bookmarks = [
   { title: "Convex Developer Hub", url: "https://docs.convex.dev" },
@@ -30,7 +30,38 @@ describe("searchBookmarks", () => {
     ).toEqual(["Convex Developer Hub"]);
   });
 
+  it("matches words in a bookmark's note", () => {
+    expect(
+      searchBookmarks(
+        [
+          ...bookmarks,
+          {
+            title: "Talk",
+            url: "https://x.example",
+            note: "about sync engines",
+          },
+        ],
+        "sync engine",
+        10
+      ).map((bookmark) => bookmark.title)
+    ).toEqual(["Talk"]);
+  });
+
   it("an empty query returns the first bookmarks up to the limit", () => {
     expect(searchBookmarks(bookmarks, "  ", 1)).toHaveLength(1);
+  });
+});
+
+describe("searchFolders", () => {
+  it("matches abbreviations across a folder's whole path", () => {
+    const folders = [
+      { path: "Dev" },
+      { path: "Dev / Convex" },
+      { path: "Reading / Essays" },
+    ];
+
+    expect(
+      searchFolders(folders, "dev cnvx", 10).map((folder) => folder.path)
+    ).toEqual(["Dev / Convex"]);
   });
 });

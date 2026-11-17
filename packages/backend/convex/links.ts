@@ -5,9 +5,16 @@ import {
   internalMutation,
   internalQuery,
 } from "./_generated/server";
-import { classifyFailure, classifyResponse } from "./model/links";
+import { userMutation } from "./functions";
+import { fetchPublic } from "./model/fetching";
+import {
+  classifyFailure,
+  classifyResponse,
+  queueLinkChecks,
+} from "./model/links";
 
 const CHECK_TIMEOUT_MS = 8000;
+const USER_CHECK_LIMIT = 200;
 const HTTP_METHOD_NOT_ALLOWED = 405;
 const HTTP_NOT_IMPLEMENTED = 501;
 const linkStatus = v.union(
@@ -15,6 +22,19 @@ const linkStatus = v.union(
   v.literal("gone"),
   v.literal("unsure")
 );
+
+// The user asks, from the library health page, for their least recently
+// checked links to be checked.
+export const check = userMutation({
+  args: {},
+  handler: async (ctx) => {
+    const { queued } = await queueLinkChecks(ctx, {
+      folderId: undefined,
+      limit: USER_CHECK_LIMIT,
+    });
+    return { queued };
+  },
+});
 
 export const checkBatch = internalAction({
   args: { userId: v.string(), bookmarkIds: v.array(v.id("bookmarks")) },
@@ -80,12 +100,13 @@ export const recordResults = internalMutation({
 
 async function checkUrl(url: string) {
   try {
-    let response = await request(url, "HEAD");
+    let { response } = await request(url, "HEAD");
     if (
       response.status === HTTP_METHOD_NOT_ALLOWED ||
       response.status === HTTP_NOT_IMPLEMENTED
     ) {
-      response = await request(url, "GET");
+      await response.body?.cancel();
+      ({ response } = await request(url, "GET"));
     }
     await response.body?.cancel();
     return {
@@ -98,10 +119,9 @@ async function checkUrl(url: string) {
 }
 
 function request(url: string, method: "HEAD" | "GET") {
-  return fetch(url, {
+  return fetchPublic(url, {
     method,
-    redirect: "follow",
-    signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    timeoutMs: CHECK_TIMEOUT_MS,
     headers: { "user-agent": "SchnellBuch/1.0 (link check)" },
   });
 }

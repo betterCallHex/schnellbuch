@@ -8,6 +8,7 @@ import {
   folderColor,
   folderMark,
 } from "./style";
+import { isWithinFolder, parentLookup } from "./tree";
 
 export const createFolderArgs = {
   name: v.string(),
@@ -186,15 +187,9 @@ async function assertOutsideFolder(
   candidateId: Id<"folders">,
   folderId: Id<"folders">
 ) {
-  const parentById = new Map(
-    (await listFolders(ctx)).map((folder) => [folder._id, folder.parentId])
-  );
-  let currentId: Id<"folders"> | undefined = candidateId;
-  while (currentId) {
-    if (currentId === folderId) {
-      throw new ConvexError("A folder can't move inside itself.");
-    }
-    currentId = parentById.get(currentId);
+  const parentOf = parentLookup(await listFolders(ctx));
+  if (isWithinFolder(parentOf, candidateId, folderId)) {
+    throw new ConvexError("A folder can't move inside itself.");
   }
 }
 
@@ -262,7 +257,11 @@ async function collectSubtree(ctx: UserQueryCtx, root: Doc<"folders">) {
   return { folders, bookmarks };
 }
 
-async function folderContents(ctx: UserQueryCtx, folderId: Id<"folders">) {
+// The folders and bookmarks directly inside a folder.
+export async function folderContents(
+  ctx: UserQueryCtx,
+  folderId: Id<"folders">
+) {
   const [folders, bookmarks] = await Promise.all([
     ctx.db
       .query("folders")
