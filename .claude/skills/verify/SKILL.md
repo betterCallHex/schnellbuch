@@ -13,14 +13,14 @@ description: Start SchnellBuch locally and check a change end to end in a browse
    - the Convex functions pushed to it, with `SIGNUP_ALLOWED_EMAILS=@schnellbuch.test` and the other backend settings;
    - the web app;
    - two seeded accounts, `ada@schnellbuch.test` and `bob@schnellbuch.test`, each with nested folders and bookmarks, signed up through the app's own `/api/auth` routes.
-3. It prints the app URL, each account's password, user ID and MCP API key. The same values are in `~/.cache/schnellbuch/dev-verify/<stack>/env.sh` (outside the repo): `source` it for `$SCHNELLBUCH_WEB_URL`, `$SCHNELLBUCH_MCP_URL`, `$ADA_MCP_KEY`, `$BOB_PASSWORD` and so on. After sourcing it, `bunx convex data|run|logs` from the repo root reach this stack instead of the cloud dev deployment.
+3. It prints the app URL, each account's user ID and MCP API key. The same values are in `~/.cache/schnellbuch/dev-verify/<stack>/env.sh` (outside the repo): `source` it for `$SCHNELLBUCH_WEB_URL`, `$SCHNELLBUCH_MCP_URL`, `$ADA_MCP_KEY`, `$BOB_EMAIL` and so on. After sourcing it, `bunx convex data|run|logs` from the repo root reach this stack instead of the cloud dev deployment.
 4. Re-running reuses the data. `bun run dev:verify reseed` starts from empty with fresh accounts; `status` says what's running.
 
 The first run downloads the Convex local backend from GitHub (`version.convex.dev`, `github.com`, `objects.githubusercontent.com` and `release-assets.githubusercontent.com` must be reachable). Without `agent-browser`, Playwright (`require("playwright")`) drives the same checks. Logs are in `backend.log` and `web.log` next to `env.sh`.
 
 ## Log in
 
-Use a named agent-browser session. Sign in on `/sign-in` as Ada or Bob with the printed password. Ada has `Dev / Convex`, `Dev / Tools`, `Reading` (with one page saved twice under different URLs) and two top-level bookmarks; Bob has `Recipes` and `Travel / Japan`. Use Bob to prove Ada's data never shows up. To test sign-up, any `@schnellbuch.test` address works; others see "Sign-ups are closed".
+Use a named agent-browser session. On `/sign-in`, enter Ada's or Bob's address and press "Email me a code"; the stack sends no email, so run `bun run dev:verify code <email>` and type the code it prints (it replaces the one the page asked for). Ada has `Dev / Convex`, `Dev / Tools`, `Reading` (with one page saved twice under different URLs) and two top-level bookmarks; Bob has `Recipes` and `Travel / Japan`. Use Bob to prove Ada's data never shows up. To test sign-up, any `@schnellbuch.test` address works the same way; others get no code, and a code issued for them anyway answers "Sign-ups are closed".
 
 ## What to check
 
@@ -39,7 +39,7 @@ Use a named agent-browser session. Sign in on `/sign-in` as Ada or Bob with the 
 - ⌘K: `dv cnvx` finds the folder "Dev / Convex"; ⌘↵ (Ctrl+Enter on Linux) on a bookmark opens its folder with it selected (`?select=`).
 - Edit… on a bookmark has a Note; the tile's tooltip, the list view, ⌘K and the MCP tools show it.
 - ⋯ → Library health: "Check links" queues checks (results within seconds; in a sandbox without internet every link reads "Gone"), and Ada's `Reading` shows up under Duplicates.
-- Settings → Account: change the password; Delete account… needs the password, then signs out, and the address can't sign in any more.
+- Settings → Account: Delete account… emails a code (`bun run dev:verify code <email>` again), then deletes and signs out; signing in again with that address makes a new, empty account.
 - No `securitypolicyviolation` events in the console: every page sends a Content-Security-Policy.
 - Phone width: `agent-browser set device "iPhone 14"`; a tap opens a tile.
 
@@ -83,12 +83,11 @@ The server is `$SCHNELLBUCH_MCP_URL`. Keep keys and tokens out of logs.
 
 ## Production smoke check
 
-After a production deploy (never deploy without the owner asking), run `bun run smoke` with `SMOKE_SITE_URL`, `SMOKE_CONVEX_URL`, `SMOKE_MCP_URL`, and optionally `SMOKE_MCP_KEY`, `SMOKE_EMAIL`, `SMOKE_PASSWORD` (the owner's own key and account; never print them). It only reads, and checks:
+After a production deploy (never deploy without the owner asking), run `bun run smoke` with `SMOKE_SITE_URL`, `SMOKE_MCP_URL`, and optionally `SMOKE_MCP_KEY` (the owner's own key; never print it). It only reads, and checks:
 
 - the sign-in page loads;
 - the manifest and service worker are served;
 - MCP answers 401 with OAuth discovery without credentials, and lists tools with a key;
-- signing in gives a Convex token and the library loads;
 - `/connect` sends `frame-ancestors 'none'`.
 
 Put its output in the PR. It also works against a local production build (see "Offline and install").
