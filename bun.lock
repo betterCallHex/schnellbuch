@@ -133,6 +133,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "@convex-dev/better-auth@0.13.0": "patches/@convex-dev%2Fbetter-auth@0.13.0.patch",
+  },
   "packages": {
     "@1natsu/wait-element": ["@1natsu/wait-element@5.0.0", "", { "dependencies": { "defu": "^6.1.4", "many-keys-map": "^3.0.0" } }, "sha512-OY5MEgiBNTfpNJvLn1yVYil2HcSfiJfSh3T3urmO96/mlxvm+frDZxZ1ngT0HO3F9usoyNPd0SnEE0SqrVaaEQ=="],
 

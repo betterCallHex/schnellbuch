@@ -1,0 +1,78 @@
+diff --git a/Users/apple/.t3/worktrees/schnellbuch/t3-b70a068e-d454a07b8bb3c4c5/node_modules/@convex-dev/better-auth/.bun-tag-98aa6fbd783eecde b/.bun-tag-98aa6fbd783eecde
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/dist/client/adapter-utils.js b/dist/client/adapter-utils.js
+index f046ec4e799c0bd4b2c51eb39f1bb92f41627207..c8e5742419224c6f39218ca03a1d3a3c413da684 100644
+--- a/dist/client/adapter-utils.js
++++ b/dist/client/adapter-utils.js
+@@ -402,16 +402,16 @@ const generateQuery = (ctx, schema, args) => {
+                     q = q.eq(usableIndex.fields[idx], value);
+                 }
+                 if (values?.lt !== undefined) {
+-                    q = q.lt(boundField, values.lt);
++                    q = q.lt(boundField === "createdAt" ? "_creationTime" : boundField, values.lt);
+                 }
+                 if (values?.lte !== undefined) {
+-                    q = q.lte(boundField, values.lte);
++                    q = q.lte(boundField === "createdAt" ? "_creationTime" : boundField, values.lte);
+                 }
+                 if (values?.gt !== undefined) {
+-                    q = q.gt(boundField, values.gt);
++                    q = q.gt(boundField === "createdAt" ? "_creationTime" : boundField, values.gt);
+                 }
+                 if (values?.gte !== undefined) {
+-                    q = q.gte(boundField, values.gte);
++                    q = q.gte(boundField === "createdAt" ? "_creationTime" : boundField, values.gte);
+                 }
+                 return q;
+             }
+@@ -503,8 +503,8 @@ export const paginate = async (ctx, schema, betterAuthSchema, args) => {
+     }
+     if (args.where?.some((w) => w.field === "_id" &&
+         w.operator &&
+-        !["eq", "in", "not_in"].includes(w.operator))) {
+-        throw new Error(`_id can only be used with eq, in, or not_in operator: ${JSON.stringify(args.where)}`);
++        !["eq", "in", "not_in", "ne"].includes(w.operator))) {
++        throw new Error(`_id can only be used with eq, in, not_in or ne operator: ${JSON.stringify(args.where)}`);
+     }
+     if (args.where?.some((w) => w.mode === "insensitive")) {
+         throw new Error(`Case-insensitive queries (mode: "insensitive") are not supported by the Convex adapter. Store values in a normalized form (e.g. lowercase on write) and query against the normalized value.`);
+diff --git a/src/client/adapter-utils.ts b/src/client/adapter-utils.ts
+index da03fc638611f0966e9d039e0326f136c6dbbee6..9601d793296608edf010ed3373ee8dcef02d411a 100644
+--- a/src/client/adapter-utils.ts
++++ b/src/client/adapter-utils.ts
+@@ -585,16 +585,16 @@ const generateQuery = (
+                 q = q.eq(usableIndex.fields[idx], value);
+               }
+               if (values?.lt !== undefined) {
+-                q = q.lt(boundField, values.lt);
++                q = q.lt(boundField === "createdAt" ? "_creationTime" : boundField, values.lt);
+               }
+               if (values?.lte !== undefined) {
+-                q = q.lte(boundField, values.lte);
++                q = q.lte(boundField === "createdAt" ? "_creationTime" : boundField, values.lte);
+               }
+               if (values?.gt !== undefined) {
+-                q = q.gt(boundField, values.gt);
++                q = q.gt(boundField === "createdAt" ? "_creationTime" : boundField, values.gt);
+               }
+               if (values?.gte !== undefined) {
+-                q = q.gte(boundField, values.gte);
++                q = q.gte(boundField === "createdAt" ? "_creationTime" : boundField, values.gte);
+               }
+               return q;
+             }
+@@ -737,11 +737,11 @@ export const paginate = async <
+       (w) =>
+         w.field === "_id" &&
+         w.operator &&
+-        !["eq", "in", "not_in"].includes(w.operator)
++        !["eq", "in", "not_in", "ne"].includes(w.operator)
+     )
+   ) {
+     throw new Error(
+-      `_id can only be used with eq, in, or not_in operator: ${JSON.stringify(args.where)}`
++      `_id can only be used with eq, in, not_in or ne operator: ${JSON.stringify(args.where)}`
+     );
+   }
+   if (args.where?.some((w) => w.mode === "insensitive")) {
