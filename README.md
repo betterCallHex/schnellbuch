@@ -2,21 +2,24 @@
 
 Fast, open-source bookmarks that work in every browser, and that your AI agents can manage for you.
 
-- **Finder-style browsing**: folders and bookmarks as icons, a path bar, back and forward. Click to select, double-click or ↵ to open, ⌘↑ to go up, right-click for actions, ⌘⌫ to delete (with Undo).
-- **Drag and drop** onto folders, or onto the path bar to move things up.
-- **⌘V** with a link copied saves it into the folder you're looking at.
-- **⌘K** searches every bookmark and folder as you type (fuzzy: `cnvx hub` finds "Convex Developer Hub"). Paste a link into it to save it.
+- **Finder-style browsing**: folders and bookmarks as icons or as a list, sorted by date saved or by name, a path bar, back and forward. Click to select, ⌘-click or ⇧-click to select several, ⌘A for all, double-click or ↵ to open, ⌘↑ to go up, right-click for actions, ⌘⌫ to delete (with Undo). Folders with thousands of bookmarks stay fast.
+- **Drag and drop** onto folders, or onto the path bar to move things up. Dragging one of several selected items moves them all, as one Undo.
+- **⌘V** with a link copied saves it into the folder you're looking at. A link you already have isn't saved twice: SchnellBuch says where it is, with a button to show it.
+- **⌘K** searches every bookmark (title, link and note) and folder as you type (fuzzy: `cnvx hub` finds "Convex Developer Hub", `dv cnvx` the folder "Dev / Convex"). ⌘↵ shows the highlighted bookmark in its folder. Paste a link into it to save it.
+- **Notes** on bookmarks, for why you saved something. They're searched, shown in the list view, kept in exports (as browsers' `<DD>` descriptions) and readable and writable by agents.
+- **Library health**: check whether saved pages still exist, and find the same page saved under different links. Delete what's broken or duplicated in one go, with Undo.
 - **Browser extension** for Chrome, Firefox and Edge (and other Chromium browsers): the toolbar button or Alt+Shift+S saves the current tab, and right-clicking a link saves it. The save popup remembers the folder you used last. It also hands the browser's bookmarks to SchnellBuch for a one-click import.
 - **Bookmarklet** saves the page you're on from any browser, no extension needed.
 - **Import and export**: pick the browser your bookmarks are in. With the extension installed in that browser they import in one click; otherwise SchnellBuch shows that browser's export steps and takes the exported file (Safari always goes this way). Folders, titles and dates are kept and links you already have are skipped. Export downloads your whole library as a bookmarks file, as a backup.
 - **MCP server** so Claude, Cursor or any MCP client can list, search, add, move and delete your bookmarks.
 - Live everywhere: a change from an agent or another tab shows up immediately.
 - **Installable, and works offline**: install it from the browser (or "Add to Home Screen") and it opens in its own window. Without a network you can still browse and search (⌘K) the library you last loaded, and add, edit, move, copy and delete bookmarks and folders. Those changes are kept on the device (IndexedDB), marked "Waiting to sync", and sent in order once you're back online, even after a reload. Signing out removes the copy and any unsynced changes from the device.
-- **Finder-style Edit menu**: the toolbar's Edit menu names what ⌘Z and ⇧⌘Z would undo or redo ("Undo Move “Docs”"), and cuts, copies and pastes the selected item.
+- **Finder-style Edit menu**: the toolbar's Edit menu names what ⌘Z and ⇧⌘Z would undo or redo ("Undo Move “Docs”"), and cuts, copies and pastes the selected items.
+- **Your account**: change your password, or delete your account, which removes your bookmarks, history and agent connections.
 
 ## Stack
 
-TypeScript, Bun workspaces, Turborepo, Convex (database, functions, realtime), Better Auth (`@convex-dev/better-auth`), TanStack Start with React Compiler, Tailwind + shadcn/ui on Base UI, cmdk, uFuzzy, dnd-kit, t3-env, Biome + Ultracite, fallow, Vitest with `convex-test` for the backend and `bun test` for the rest.
+TypeScript, Bun workspaces, Turborepo, Convex (database, functions, realtime) with the Workpool and Rate Limiter components, Better Auth (`@convex-dev/better-auth`), TanStack Start with React Compiler, TanStack Virtual, Tailwind + shadcn/ui on Base UI, cmdk, uFuzzy, dnd-kit, t3-env, Biome + Ultracite, fallow, Vitest with `convex-test` for the backend and `bun test` for the rest.
 
 ## Run it
 
@@ -38,6 +41,12 @@ There is one env file: `.env.local` at the repo root. Every app and package read
 ### Who can sign up
 
 Only addresses in `SIGNUP_ALLOWED_EMAILS` can create an account. It's a comma-separated list of addresses (`me@example.com`) or whole domains (`@family.example`), compared case-insensitively. Anyone else sees "Sign-ups are closed". An empty or missing list closes sign-ups entirely, and accounts that already exist keep signing in whatever the list says.
+
+Sign-in and sign-up allow ten attempts per address every 15 minutes. SchnellBuch sends no email, so a forgotten password is reset by whoever runs the deployment (add `--prod` for production); it also signs that account out everywhere:
+
+```sh
+bunx convex run account:setPassword '{"email":"me@example.com","password":"a new passphrase"}'
+```
 
 ## Deploy (Vercel + Convex)
 
@@ -99,12 +108,12 @@ Tools:
 | `search_bookmarks`: fuzzy, optionally inside one folder | `move_items`: up to 200 bookmarks and folders in one call |
 | `find_duplicates`: the same page saved under different URLs | `delete_bookmarks`: up to 200 at once |
 | `find_broken_links`: results of the last `check_links` | `undo_change`: reverse one bulk change |
-| `list_changes`: recent bulk changes with their IDs | `check_links`: check in the background whether pages still exist |
+| `list_changes`: recent changes with their IDs | `check_links`: check in the background whether pages still exist |
 | | `create_folder`, `update_folder`, `delete_folder` |
 
 SchnellBuch never opens a link an agent sends (no title fetch, no link check), so text an agent read can't make the server send data anywhere. Agents should pass the page title.
 
-Every `add_bookmarks`, `move_items` and `delete_bookmarks` call is one change set. Agents can reverse it with `undo_change`, and you can undo it in Settings → Recent agent changes.
+Every write an agent makes is one change set, from `add_bookmark` to `delete_folder`, and returns its `changeId`. Agents can reverse it with `undo_change`, and you can see and undo it in Settings → Recent agent changes. `add_bookmarks`, `move_items` and `delete_bookmarks` make one change set of many items. Changes are kept for 90 days.
 
 ## Scripts
 
@@ -121,6 +130,8 @@ Every `add_bookmarks`, `move_items` and `delete_bookmarks` call is one change se
 
 - **Agent sign-in** uses `@convex-dev/mcp` (alpha) instead of Better Auth's API key plugin, which would need the Better Auth component's "local install" on Convex.
 - **No Convex backups, Axiom or PostHog**: not needed for a personal app. Export doubles as a backup.
+- **Page fetches are fenced and batched**: titles, icons and link checks only ever request public web addresses, each redirect checked again, and read at most 500 KB of a page. An import fetches one page per site when only the icon is missing, a few batches at a time through a Convex Workpool, and writes each batch's results at once, so open tabs get one update per batch rather than one per bookmark.
+- **Content-Security-Policy on every page**: the browser extension hands the browser's bookmarks to any script on SchnellBuch's origin, so scripts, connections and framing are locked to SchnellBuch and its Convex deployment.
 - **Biome `noJsxPropsBind` is off**: React Compiler already memoizes inline handlers.
 
 ## License

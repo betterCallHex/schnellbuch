@@ -16,7 +16,7 @@ description: Start SchnellBuch locally and check a change end to end in a browse
 3. It prints the app URL, each account's password, user ID and MCP API key. The same values are in `~/.cache/schnellbuch/dev-verify/<stack>/env.sh` (outside the repo): `source` it for `$SCHNELLBUCH_WEB_URL`, `$SCHNELLBUCH_MCP_URL`, `$ADA_MCP_KEY`, `$BOB_PASSWORD` and so on. After sourcing it, `bunx convex data|run|logs` from the repo root reach this stack instead of the cloud dev deployment.
 4. Re-running reuses the data. `bun run dev:verify reseed` starts from empty with fresh accounts; `status` says what's running.
 
-The first run downloads the Convex local backend from GitHub (`version.convex.dev` and `github.com` must be reachable). Logs are in `backend.log` and `web.log` next to `env.sh`.
+The first run downloads the Convex local backend from GitHub (`version.convex.dev`, `github.com`, `objects.githubusercontent.com` and `release-assets.githubusercontent.com` must be reachable). Without `agent-browser`, Playwright (`require("playwright")`) drives the same checks. Logs are in `backend.log` and `web.log` next to `env.sh`.
 
 ## Log in
 
@@ -32,7 +32,15 @@ Use a named agent-browser session. Sign in on `/sign-in` as Ada or Bob with the 
 - Drag a tile onto a folder tile, or onto a crumb in the path bar to move it up. Use `agent-browser mouse down/move/up` with `--steps`; `agent-browser drag` is too fast for dnd-kit.
 - Bookmarklet: open `/add?url=<encoded>&title=<encoded>` at 420×320.
 - Import and export: ⋯ → Export bookmarks downloads `schnellbuch-YYYY-MM-DD.html`; ⋯ → Import bookmarks… opens the browser picker; pick one without the extension and drop or choose a browser export (fixtures in `packages/backend/testing/fixtures`, `agent-browser upload 'input[type=file]' <file>`). It shows progress in Settings and lands in one "Imported from …" folder.
-- Settings → Recent agent changes lists bulk changes an agent made, each with Undo.
+- Settings → Recent agent changes lists every change an agent made (single tools too), each with Undo.
+- Selection: ⌘-click (Ctrl on Linux) and ⇧-click select several tiles, ⌘A all of them; right-click one of them for "Move N items to / Cut / Copy / Delete N items"; ⌘⌫ deletes them all (a dialog first when folders are among them) and one ⌘Z brings them back. Dragging one selected tile moves the whole selection.
+- View (the grid button in the toolbar, inside ⋯ on phones): Icons or List, sorted by date saved or name, remembered after a reload. For a big folder, `add_bookmarks` 3×200 links over MCP into one folder: only about a hundred tiles are in the page, arrow keys keep the selected tile focused and scrolled into view.
+- Saving a link that's already saved (paste, ⌘K, the add dialog) toasts "Already saved in …" with Show; `/add` with such a link says "Already saved" and its folder picker moves the existing bookmark.
+- ⌘K: `dv cnvx` finds the folder "Dev / Convex"; ⌘↵ (Ctrl+Enter on Linux) on a bookmark opens its folder with it selected (`?select=`).
+- Edit… on a bookmark has a Note; the tile's tooltip, the list view, ⌘K and the MCP tools show it.
+- ⋯ → Library health: "Check links" queues checks (results within seconds; in a sandbox without internet every link reads "Gone"), and Ada's `Reading` shows up under Duplicates.
+- Settings → Account: change the password; Delete account… needs the password, then signs out, and the address can't sign in any more.
+- No `securitypolicyviolation` events in the console: every page sends a Content-Security-Policy.
 - Phone width: `agent-browser set device "iPhone 14"`; a tap opens a tile.
 
 ## Offline edits in dev
