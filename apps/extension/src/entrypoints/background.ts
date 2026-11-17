@@ -1,8 +1,11 @@
+import {
+  type BookmarksReply,
+  isBookmarksRequest,
+} from "@schnellbuch/backend/page-bridge";
 import { type Browser, browser } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
 import { addPageUrl, isSavable } from "@/lib/add-url";
 import { bookmarkFile } from "@/lib/bookmark-file";
-import { type BookmarksReply, isBookmarksRequest } from "@/lib/page-bridge";
 import { isServerPage, serverMatchPattern } from "@/lib/server-access";
 import { serverUrl } from "@/lib/settings";
 

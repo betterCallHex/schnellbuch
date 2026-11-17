@@ -1,10 +1,12 @@
+import {
+  EXTENSION_CHANNEL,
+  PAGE_CHANNEL,
+  READ_BOOKMARKS,
+} from "@schnellbuch/backend/page-bridge";
 import { ConvexError } from "convex/values";
 import { useEffect, useState } from "react";
 import type { Engine } from "@/lib/browsers";
 
-const PAGE_CHANNEL = "schnellbuch:page";
-const EXTENSION_CHANNEL = "schnellbuch:extension";
-const READ_BOOKMARKS = "read-bookmarks";
 const REPLY_TIMEOUT_MS = 60_000;
 const NO_ANSWER =
   "The SchnellBuch extension didn't answer. Reload the page and try again.";

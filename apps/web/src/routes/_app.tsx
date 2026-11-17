@@ -8,6 +8,7 @@ import { OfflineBanner } from "@/components/offline-banner";
 import { type DragItem, type DropTarget, dragSensors } from "@/lib/drag";
 import { useLibrary } from "@/lib/library";
 import { useLibraryEdits } from "@/lib/library-edits";
+import { itemId, selectedItems } from "@/lib/selection";
 import { useEditHistoryShortcuts } from "@/lib/shortcuts";
 
 export const Route = createFileRoute("/_app")({
@@ -37,6 +38,14 @@ function AppShell() {
     const target = operation.target?.data as DropTarget | undefined;
     if (canceled || !item || !target) {
       return;
+    }
+    // Dragging one of several selected tiles moves them all.
+    const selection = selectedItems();
+    if (
+      selection.length > 1 &&
+      selection.some((selected) => itemId(selected) === item.id)
+    ) {
+      return edits.moveItems(selection, target.folderId);
     }
     if (item.kind === "bookmark") {
       const bookmark = bookmarks.find((entry) => entry._id === item.id);

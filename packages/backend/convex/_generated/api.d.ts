@@ -8,13 +8,16 @@
  * @module
  */
 
+import type * as account from "../account.js";
 import type * as agent from "../agent.js";
 import type * as auth from "../auth.js";
 import type * as bookmarks from "../bookmarks.js";
 import type * as changes from "../changes.js";
+import type * as crons from "../crons.js";
 import type * as env from "../env.js";
 import type * as folders from "../folders.js";
 import type * as functions from "../functions.js";
+import type * as housekeeping from "../housekeeping.js";
 import type * as http from "../http.js";
 import type * as imports from "../imports.js";
 import type * as links from "../links.js";
@@ -27,12 +30,15 @@ import type * as model_changes from "../model/changes.js";
 import type * as model_describe from "../model/describe.js";
 import type * as model_duplicates from "../model/duplicates.js";
 import type * as model_env from "../model/env.js";
+import type * as model_fetching from "../model/fetching.js";
 import type * as model_folders from "../model/folders.js";
 import type * as model_html from "../model/html.js";
 import type * as model_import from "../model/import.js";
+import type * as model_limits from "../model/limits.js";
 import type * as model_links from "../model/links.js";
 import type * as model_netscape from "../model/netscape.js";
 import type * as model_page from "../model/page.js";
+import type * as model_pool from "../model/pool.js";
 import type * as model_search from "../model/search.js";
 import type * as model_signup from "../model/signup.js";
 import type * as model_style from "../model/style.js";
@@ -46,13 +52,16 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  account: typeof account;
   agent: typeof agent;
   auth: typeof auth;
   bookmarks: typeof bookmarks;
   changes: typeof changes;
+  crons: typeof crons;
   env: typeof env;
   folders: typeof folders;
   functions: typeof functions;
+  housekeeping: typeof housekeeping;
   http: typeof http;
   imports: typeof imports;
   links: typeof links;
@@ -65,12 +74,15 @@ declare const fullApi: ApiFromModules<{
   "model/describe": typeof model_describe;
   "model/duplicates": typeof model_duplicates;
   "model/env": typeof model_env;
+  "model/fetching": typeof model_fetching;
   "model/folders": typeof model_folders;
   "model/html": typeof model_html;
   "model/import": typeof model_import;
+  "model/limits": typeof model_limits;
   "model/links": typeof model_links;
   "model/netscape": typeof model_netscape;
   "model/page": typeof model_page;
+  "model/pool": typeof model_pool;
   "model/search": typeof model_search;
   "model/signup": typeof model_signup;
   "model/style": typeof model_style;
@@ -107,4 +119,6 @@ export declare const internal: FilterApi<
 export declare const components: {
   betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
   mcp: import("@convex-dev/mcp/_generated/component.js").ComponentApi<"mcp">;
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
+  fetchPool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"fetchPool">;
 };

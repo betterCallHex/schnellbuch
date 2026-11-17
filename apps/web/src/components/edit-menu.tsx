@@ -23,7 +23,7 @@ import {
   undoLastEdit,
   useEditHistory,
 } from "@/lib/library-edits";
-import { type LibraryItem, useSelectedItem } from "@/lib/selection";
+import { itemName, itemsLabel, useSelectedItems } from "@/lib/selection";
 import {
   putOnClipboard,
   SHORTCUTS,
@@ -33,11 +33,14 @@ import {
 
 export function EditMenu() {
   const { undoLabel, redoLabel } = useEditHistory();
-  const selected = useSelectedItem();
+  const selected = useSelectedItems();
   const clip = useHeldClip();
   const { folder } = useSearch({ strict: false });
   const pasteClip = usePasteClip(folder as Id<"folders"> | undefined);
-  const selectedName = selected && itemName(selected);
+  const selectedLabel =
+    selected.length > 0
+      ? itemsLabel(selected.map((item) => ({ name: itemName(item) })))
+      : undefined;
 
   return (
     <DropdownMenu>
@@ -71,23 +74,23 @@ export function EditMenu() {
         />
         <DropdownMenuSeparator />
         <MenuEntry
-          disabled={!selected}
+          disabled={!selectedLabel}
           icon={<ScissorsIcon />}
-          label={selectedName ? `Cut “${selectedName}”` : "Cut"}
-          onClick={() => selected && putOnClipboard(selected, "cut")}
+          label={selectedLabel ? `Cut ${selectedLabel}` : "Cut"}
+          onClick={() => putOnClipboard(selected, "cut")}
           shortcut={shortcutLabel(SHORTCUTS.cut)}
         />
         <MenuEntry
-          disabled={!selected}
+          disabled={!selectedLabel}
           icon={<CopyIcon />}
-          label={selectedName ? `Copy “${selectedName}”` : "Copy"}
-          onClick={() => selected && putOnClipboard(selected, "copy")}
+          label={selectedLabel ? `Copy ${selectedLabel}` : "Copy"}
+          onClick={() => putOnClipboard(selected, "copy")}
           shortcut={shortcutLabel(SHORTCUTS.copy)}
         />
         <MenuEntry
           disabled={!clip}
           icon={<ClipboardPasteIcon />}
-          label={clip ? `Paste “${clip.item.name}”` : "Paste"}
+          label={clip ? `Paste ${itemsLabel(clip.items)}` : "Paste"}
           onClick={() => clip && pasteClip(clip)}
           shortcut={shortcutLabel(SHORTCUTS.paste)}
         />
@@ -116,8 +119,4 @@ function MenuEntry({
       <DropdownMenuShortcut>{shortcut}</DropdownMenuShortcut>
     </DropdownMenuItem>
   );
-}
-
-function itemName(item: LibraryItem) {
-  return item.kind === "folder" ? item.folder.name : item.bookmark.title;
 }

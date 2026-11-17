@@ -12,6 +12,7 @@ import {
   latestImport,
   writeImportBatch,
 } from "./model/import";
+import { enforceLimit } from "./model/limits";
 import {
   BOOKMARK_FILE_SOURCES,
   countBookmarks,
@@ -37,6 +38,7 @@ export const start = action({
     { fileName, html, source }
   ): Promise<Doc<"imports"> | null> => {
     const userId = await requireUserId(ctx);
+    await enforceLimit(ctx, "importFile", userId, "imports");
     if (html.length > MAX_FILE_LENGTH) {
       throw new ConvexError(
         "That file is too big to import. Bookmarks exports are usually a few MB."

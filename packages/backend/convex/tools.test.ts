@@ -193,6 +193,130 @@ describe("bulk agent tools", () => {
   });
 });
 
+describe("single-item agent tools", () => {
+  it("every write shows up as a change, and undo reverses it", async () => {
+    const t = createTest();
+    const agent = await connectAgent(t, "owner");
+    const dev = await agent.ok("create_folder", { name: "Dev" });
+    const added = await agent.ok("add_bookmark", {
+      url: "https://bun.sh",
+      title: "Bun",
+      folderId: dev.id,
+    });
+    const edited = await agent.ok("update_bookmark", {
+      bookmarkId: added.id,
+      note: "Try it for scripts",
+      title: "Bun runtime",
+      url: "https://bun.com",
+      folderId: null,
+    });
+    const renamed = await agent.ok("update_folder", {
+      folderId: dev.id,
+      name: "Development",
+    });
+
+    const { changes } = await agent.ok("list_changes");
+    expect(
+      changes.map((change: { summary: string }) => change.summary)
+    ).toEqual([
+      "Changed folder “Dev”",
+      "Edited “Bun”",
+      "Added “Bun” to Dev",
+      "Created folder “Dev”",
+    ]);
+
+    await agent.ok("undo_change", { changeId: renamed.changeId });
+    await agent.ok("undo_change", { changeId: edited.changeId });
+    const [restored] = (await agent.ok("list_bookmarks")).bookmarks;
+    expect(restored).toMatchObject({
+      title: "Bun",
+      url: "https://bun.sh/",
+      folderPath: "Dev",
+      note: null,
+    });
+
+    await agent.ok("undo_change", { changeId: added.changeId });
+    await agent.ok("undo_change", { changeId: dev.changeId });
+    expect((await agent.ok("list_bookmarks")).bookmarks).toEqual([]);
+    expect((await agent.ok("list_folders")).folders).toEqual([]);
+  });
+
+  it("undoing delete_folder puts the folder back with what was directly inside it", async () => {
+    const t = createTest();
+    const agent = await connectAgent(t, "owner");
+    const dev = await agent.ok("create_folder", { name: "Dev" });
+    const tools = await agent.ok("create_folder", {
+      name: "Tools",
+      parentId: dev.id,
+    });
+    await agent.ok("add_bookmark", {
+      url: "https://bun.sh",
+      title: "Bun",
+      folderId: dev.id,
+    });
+
+    const deleted = await agent.ok("delete_folder", { folderId: dev.id });
+    expect((await agent.ok("list_folders")).folders).toEqual([
+      expect.objectContaining({ path: "Tools" }),
+    ]);
+    await agent.ok("undo_change", { changeId: deleted.changeId });
+
+    const { folders } = await agent.ok("list_folders");
+    expect(
+      folders.map((folder: { path: string; bookmarkCount: number }) => [
+        folder.path,
+        folder.bookmarkCount,
+      ])
+    ).toEqual([
+      ["Dev", 1],
+      ["Dev / Tools", 0],
+    ]);
+    expect(folders[1].id).toBe(tools.id);
+  });
+
+  it("undoing delete_bookmark brings it back with its date", async () => {
+    const t = createTest();
+    const owner = t.withIdentity({ subject: "owner" });
+    const agent = await connectAgent(t, "owner");
+    const bookmarkId = await owner.mutation(api.bookmarks.add, {
+      url: "https://example.com/kept",
+      title: "Kept",
+      savedAt: Date.UTC(2020, 0, 1),
+    });
+
+    const deleted = await agent.ok("delete_bookmark", { bookmarkId });
+    await agent.ok("undo_change", { changeId: deleted.changeId });
+
+    expect((await agent.ok("list_bookmarks")).bookmarks).toEqual([
+      expect.objectContaining({
+        title: "Kept",
+        savedAt: "2020-01-01T00:00:00.000Z",
+      }),
+    ]);
+  });
+
+  it("undoing a folder move never puts a folder inside itself", async () => {
+    const t = createTest();
+    const agent = await connectAgent(t, "owner");
+    const a = await agent.ok("create_folder", { name: "A" });
+    const b = await agent.ok("create_folder", { name: "B", parentId: a.id });
+    // Move B to the top, then A into B; undoing B's move would make a loop.
+    const moveB = await agent.ok("update_folder", {
+      folderId: b.id,
+      parentId: null,
+    });
+    await agent.ok("update_folder", { folderId: a.id, parentId: b.id });
+
+    await agent.ok("undo_change", { changeId: moveB.changeId });
+
+    const { folders } = await agent.ok("list_folders");
+    expect(folders.map((folder: { path: string }) => folder.path)).toEqual([
+      "B",
+      "B / A",
+    ]);
+  });
+});
+
 describe("finding things", () => {
   it("list_bookmarks pages with nextCursor", async () => {
     const t = createTest();
@@ -368,7 +492,10 @@ describe("new tools respect ownership and scopes", () => {
     );
     expect(intoForeignFolder.content[0].text).toBe("Folder not found.");
     expect(duplicates.groups).toEqual([]);
-    expect(changes.changes).toEqual([]);
+    // Only the intruder's own folder, none of the owner's changes.
+    expect(
+      changes.changes.map((change: { summary: string }) => change.summary)
+    ).toEqual(["Created folder “Mine”"]);
     const ownerView = await owner.ok("list_bookmarks");
     expect(ownerView.bookmarks).toEqual([
       expect.objectContaining({ title: "Secret", folderId: null }),

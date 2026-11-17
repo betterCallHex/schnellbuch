@@ -1,5 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
+import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,11 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { safeRedirectPath } from "@/lib/redirect";
+import { optionalText } from "@/lib/search-params";
 
 export const Route = createFileRoute("/sign-in")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
-  }),
+  validateSearch: z.object({ redirect: optionalText }),
   beforeLoad: ({ context, search }) => {
     if (context.token) {
       throw redirect({ href: safeRedirectPath(search.redirect) });

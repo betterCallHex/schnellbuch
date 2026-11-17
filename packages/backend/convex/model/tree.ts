@@ -46,3 +46,58 @@ function sortByName<Folder extends { name: string }>(folders: Folder[]) {
     first.name.localeCompare(second.name)
   );
 }
+
+interface Parented<Id extends string> {
+  _id: Id;
+  parentId?: Id;
+}
+
+// Looks up a folder's parent by ID.
+export function parentLookup<Id extends string>(
+  folders: Iterable<Parented<Id>>
+) {
+  const parentById = new Map<Id, Id | undefined>();
+  for (const folder of folders) {
+    parentById.set(folder._id, folder.parentId);
+  }
+  return (folderId: Id) => parentById.get(folderId);
+}
+
+// Whether candidateId is folderId itself or somewhere inside it.
+export function isWithinFolder<Id extends string>(
+  parentOf: (folderId: Id) => Id | undefined,
+  candidateId: Id | undefined,
+  folderId: Id
+) {
+  const seen = new Set<Id>();
+  for (
+    let currentId = candidateId;
+    currentId && !seen.has(currentId);
+    currentId = parentOf(currentId)
+  ) {
+    if (currentId === folderId) {
+      return true;
+    }
+    seen.add(currentId);
+  }
+  return false;
+}
+
+// A folder's ID and the IDs of every folder inside it.
+export function folderAndDescendants<Id extends string>(
+  folders: Iterable<Parented<Id>>,
+  rootId: Id
+) {
+  const childrenByParent = Map.groupBy(folders, (folder) => folder.parentId);
+  const ids = new Set<Id>();
+  const pending = [rootId];
+  for (let id = pending.pop(); id !== undefined; id = pending.pop()) {
+    if (!ids.has(id)) {
+      ids.add(id);
+      pending.push(
+        ...(childrenByParent.get(id) ?? []).map((child) => child._id)
+      );
+    }
+  }
+  return ids;
+}

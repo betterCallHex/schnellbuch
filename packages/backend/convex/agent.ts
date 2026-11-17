@@ -1,5 +1,5 @@
 import { ConvexError, type Infer, v } from "convex/values";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Id } from "./_generated/dataModel";
 import {
   agentMutation,
   agentQuery,
@@ -8,7 +8,7 @@ import {
 } from "./functions";
 import * as bookmarks from "./model/bookmarks";
 import * as changes from "./model/changes";
-import { describeLibrary } from "./model/describe";
+import { describeFolders, describeLibrary } from "./model/describe";
 import { findDuplicateGroups } from "./model/duplicates";
 import * as folders from "./model/folders";
 import { queueLinkChecks } from "./model/links";
@@ -139,23 +139,33 @@ export const listChanges = agentQuery({
   handler: changes.listChanges,
 });
 
+// Every write is recorded as a change, so the user sees it in Settings and
+// it can be undone, whether one item or many.
 export const addBookmark = agentMutation({
   args: {
     url: v.string(),
     title: v.optional(v.string()),
+    note: v.optional(v.string()),
     folderId: v.optional(v.string()),
   },
-  handler: async (ctx, { url, title, folderId }) => {
+  handler: async (ctx, { url, title, note, folderId }) => {
     const bookmarkId = await bookmarks.addBookmark(
       ctx,
       {
         url,
         title,
+        note,
         folderId: folderId ? folderIdFrom(ctx, folderId) : undefined,
       },
       "agent"
     );
-    return describeBookmark(ctx, bookmarkId);
+    const added = await describeBookmark(ctx, bookmarkId);
+    const changeId = await changes.recordChange(
+      ctx,
+      `Added “${added.title}”${inFolderPhrase(added.folderPath)}`,
+      [{ kind: "removeBookmark", bookmarkId }]
+    );
+    return { ...added, changeId };
   },
 });
 
@@ -164,16 +174,39 @@ export const updateBookmark = agentMutation({
     bookmarkId: v.string(),
     title: v.optional(v.string()),
     url: v.optional(v.string()),
+    note: v.optional(v.string()),
     folderId: v.optional(v.union(v.string(), v.null())),
   },
-  handler: async (ctx, { bookmarkId, title, url, folderId }) => {
+  handler: async (ctx, { bookmarkId, title, url, note, folderId }) => {
     const id = bookmarkIdFrom(ctx, bookmarkId);
+    const before = await bookmarks.getOwnedBookmark(ctx, id);
     await bookmarks.updateBookmark(
       ctx,
-      { bookmarkId: id, title, url, folderId: folderTarget(ctx, folderId) },
+      {
+        bookmarkId: id,
+        title,
+        url,
+        note,
+        folderId: folderTarget(ctx, folderId),
+      },
       "agent"
     );
-    return describeBookmark(ctx, id);
+    const changeId = await changes.recordChange(
+      ctx,
+      `Edited “${before.title}”`,
+      [
+        {
+          kind: "editBookmark",
+          bookmarkId: id,
+          url: before.url,
+          title: before.title,
+          note: before.note,
+          folderId: before.folderId,
+          urlFromAgent: before.urlFromAgent,
+        },
+      ]
+    );
+    return { ...(await describeBookmark(ctx, id)), changeId };
   },
 });
 
@@ -181,8 +214,14 @@ export const deleteBookmark = agentMutation({
   args: { bookmarkId: v.string() },
   handler: async (ctx, { bookmarkId }) => {
     const id = bookmarkIdFrom(ctx, bookmarkId);
-    await bookmarks.deleteBookmark(ctx, { bookmarkId: id });
-    return { deletedBookmarkId: id };
+    const bookmark = await bookmarks.getOwnedBookmark(ctx, id);
+    await ctx.db.delete(id);
+    const changeId = await changes.recordChange(
+      ctx,
+      `Deleted “${bookmark.title}”`,
+      [changes.restoreBookmarkStep(bookmark)]
+    );
+    return { deletedBookmarkId: id, changeId };
   },
 });
 
@@ -193,7 +232,13 @@ export const createFolder = agentMutation({
       name,
       parentId: parentId ? folderIdFrom(ctx, parentId) : undefined,
     });
-    return describeFolder(ctx, folderId);
+    const created = await describeFolder(ctx, folderId);
+    const changeId = await changes.recordChange(
+      ctx,
+      `Created folder “${created.path}”`,
+      [{ kind: "removeFolder", folderId }]
+    );
+    return { ...created, changeId };
   },
 });
 
@@ -205,12 +250,25 @@ export const updateFolder = agentMutation({
   },
   handler: async (ctx, { folderId, name, parentId }) => {
     const id = folderIdFrom(ctx, folderId);
+    const before = await folders.getOwnedFolder(ctx, id);
     await folders.updateFolder(ctx, {
       folderId: id,
       name,
       parentId: folderTarget(ctx, parentId),
     });
-    return describeFolder(ctx, id);
+    const changeId = await changes.recordChange(
+      ctx,
+      `Changed folder “${before.name}”`,
+      [
+        {
+          kind: "editFolder",
+          folderId: id,
+          name: before.name,
+          parentId: before.parentId,
+        },
+      ]
+    );
+    return { ...(await describeFolder(ctx, id)), changeId };
   },
 });
 
@@ -218,15 +276,36 @@ export const deleteFolder = agentMutation({
   args: { folderId: v.string() },
   handler: async (ctx, { folderId }) => {
     const id = folderIdFrom(ctx, folderId);
+    const folder = await folders.getOwnedFolder(ctx, id);
+    const contents = await folders.folderContents(ctx, id);
     await folders.deleteFolder(ctx, { folderId: id });
-    return { deletedFolderId: id };
+    const changeId = await changes.recordChange(
+      ctx,
+      `Deleted folder “${folder.name}”`,
+      [
+        {
+          kind: "restoreFolder",
+          name: folder.name,
+          parentId: folder.parentId,
+          color: folder.color,
+          mark: folder.mark,
+          folderIds: contents.folders.map((child) => child._id),
+          bookmarkIds: contents.bookmarks.map((bookmark) => bookmark._id),
+        },
+      ]
+    );
+    return { deletedFolderId: id, changeId };
   },
 });
 
 export const addBookmarks = agentMutation({
   args: {
     bookmarks: v.array(
-      v.object({ url: v.string(), title: v.optional(v.string()) })
+      v.object({
+        url: v.string(),
+        title: v.optional(v.string()),
+        note: v.optional(v.string()),
+      })
     ),
     folderId: v.optional(v.union(v.string(), v.null())),
   },
@@ -242,9 +321,9 @@ export const addBookmarks = agentMutation({
       reason: string;
       existingId: string | null;
     }[] = [];
-    for (const { url, title } of args.bookmarks) {
+    for (const { url, title, note } of args.bookmarks) {
       // biome-ignore lint/performance/noAwaitInLoops: a link listed twice in one call must count as already saved
-      const outcome = await addUnlessSaved(ctx, { url, title, folderId });
+      const outcome = await addUnlessSaved(ctx, { url, title, note, folderId });
       if (outcome.kind === "added") {
         addedIds.push(outcome.bookmarkId);
       } else {
@@ -255,26 +334,23 @@ export const addBookmarks = agentMutation({
         });
       }
     }
-    const library = await readLibrary(ctx);
+    const described = describeFolders(await folders.listFolders(ctx));
     const changeId =
       addedIds.length > 0
         ? await changes.recordChange(
             ctx,
-            `Added ${count(addedIds.length, "bookmark")}${inFolderPhrase(library, folderId)}`,
+            `Added ${count(addedIds.length, "bookmark")}${inFolderPhrase(described.path(folderId))}`,
             addedIds.map((bookmarkId) => ({
               kind: "removeBookmark",
               bookmarkId,
             }))
           )
         : null;
-    const byId = new Map(
-      library.bookmarks.map((bookmark) => [bookmark._id, bookmark])
-    );
+    const added = await Promise.all(addedIds.map((id) => ctx.db.get(id)));
     return {
-      added: addedIds
-        .map((bookmarkId) => byId.get(bookmarkId))
-        .filter((bookmark) => bookmark !== undefined)
-        .map(library.bookmark),
+      added: added
+        .filter((bookmark) => bookmark !== null)
+        .map(described.bookmark),
       skipped,
       changeId,
     };
@@ -300,7 +376,7 @@ export const moveItems = agentMutation({
     const undo: Infer<typeof undoStep>[] = [];
     for (const bookmarkId of bookmarkIds) {
       // biome-ignore lint/performance/noAwaitInLoops: each move checks ownership; any failure rolls back the whole call
-      const bookmark = await getOwnedBookmark(ctx, bookmarkId);
+      const bookmark = await bookmarks.getOwnedBookmark(ctx, bookmarkId);
       undo.push({
         kind: "moveBookmark",
         bookmarkId,
@@ -314,7 +390,7 @@ export const moveItems = agentMutation({
       undo.push({ kind: "moveFolder", folderId, parentId: folder.parentId });
       await folders.updateFolder(ctx, { folderId, parentId: target });
     }
-    const library = await readLibrary(ctx);
+    const described = describeFolders(await folders.listFolders(ctx));
     const what = [
       bookmarkIds.length > 0 ? count(bookmarkIds.length, "bookmark") : "",
       folderIds.length > 0 ? count(folderIds.length, "folder") : "",
@@ -322,7 +398,7 @@ export const moveItems = agentMutation({
       .filter(Boolean)
       .join(" and ");
     const destination = target
-      ? (library.folder(target)?.path ?? "a folder")
+      ? (described.path(target) ?? "a folder")
       : "the top level";
     const changeId = await changes.recordChange(
       ctx,
@@ -341,21 +417,13 @@ export const deleteBookmarks = agentMutation({
     );
     assertBulkSize(ids.length);
     const owned = await Promise.all(
-      ids.map((bookmarkId) => getOwnedBookmark(ctx, bookmarkId))
+      ids.map((bookmarkId) => bookmarks.getOwnedBookmark(ctx, bookmarkId))
     );
     await Promise.all(owned.map((bookmark) => ctx.db.delete(bookmark._id)));
     const changeId = await changes.recordChange(
       ctx,
       `Deleted ${count(owned.length, "bookmark")}`,
-      owned.map((bookmark) => ({
-        kind: "restoreBookmark",
-        url: bookmark.url,
-        title: bookmark.title,
-        folderId: bookmark.folderId,
-        savedAt: bookmarks.savedAtOf(bookmark),
-        faviconUrl: bookmark.faviconUrl,
-        urlFromAgent: bookmark.urlFromAgent,
-      }))
+      owned.map(changes.restoreBookmarkStep)
     );
     return { deletedCount: owned.length, changeId };
   },
@@ -417,8 +485,14 @@ async function addUnlessSaved(
   {
     url,
     title,
+    note,
     folderId,
-  }: { url: string; title?: string; folderId?: Id<"folders"> }
+  }: {
+    url: string;
+    title?: string;
+    note?: string;
+    folderId?: Id<"folders">;
+  }
 ): Promise<
   | { kind: "added"; bookmarkId: Id<"bookmarks"> }
   | { kind: "skipped"; reason: string; existingId: string | null }
@@ -446,28 +520,13 @@ async function addUnlessSaved(
     kind: "added",
     bookmarkId: await bookmarks.addBookmark(
       ctx,
-      { url: normalized, title, folderId },
+      { url: normalized, title, note, folderId },
       "agent"
     ),
   };
 }
 
-async function getOwnedBookmark(
-  ctx: UserQueryCtx,
-  bookmarkId: Id<"bookmarks">
-): Promise<Doc<"bookmarks">> {
-  const bookmark = await ctx.db.get(bookmarkId);
-  if (!bookmark || bookmark.userId !== ctx.userId) {
-    throw new ConvexError("Bookmark not found.");
-  }
-  return bookmark;
-}
-
-function inFolderPhrase(
-  library: { folder: (id: Id<"folders">) => { path: string } | undefined },
-  folderId: Id<"folders"> | undefined
-) {
-  const path = folderId ? library.folder(folderId)?.path : undefined;
+function inFolderPhrase(path: string | null | undefined) {
   return path ? ` to ${path}` : " to the top level";
 }
 
@@ -497,18 +556,22 @@ async function describeBookmark(
   ctx: UserQueryCtx,
   bookmarkId: Id<"bookmarks">
 ) {
-  const library = await readLibrary(ctx);
-  const bookmark = library.bookmarks.find(
-    (candidate) => candidate._id === bookmarkId
-  );
-  if (!bookmark) {
-    throw new ConvexError("Bookmark not found.");
-  }
-  return library.bookmark(bookmark);
+  const [bookmark, allFolders] = await Promise.all([
+    bookmarks.getOwnedBookmark(ctx, bookmarkId),
+    folders.listFolders(ctx),
+  ]);
+  return describeFolders(allFolders).bookmark(bookmark);
 }
 
 async function describeFolder(ctx: UserQueryCtx, folderId: Id<"folders">) {
-  const folder = (await readLibrary(ctx)).folder(folderId);
+  const [allFolders, contents] = await Promise.all([
+    folders.listFolders(ctx),
+    folders.folderContents(ctx, folderId),
+  ]);
+  const folder = describeFolders(allFolders).folder(
+    folderId,
+    contents.bookmarks.length
+  );
   if (!folder) {
     throw new ConvexError("Folder not found.");
   }

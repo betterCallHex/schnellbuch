@@ -160,10 +160,22 @@ async function deleteStoredQueue(userId: string) {
 
 function openQueue(userId: string) {
   if (opened?.userId !== userId) {
-    opened = { userId, ready: reload(userId) };
+    opened = { userId, ready: reload(userId).then(forgetSyncedIds) };
     listenToOtherTabs();
   }
   return opened.ready;
+}
+
+// With nothing left to send, no stored edit refers to a temporary ID, so the
+// stored map from temporary to real IDs can go. This tab keeps its copy in
+// memory for its own undo history and URLs.
+async function forgetSyncedIds() {
+  if (queueStore.getState().queue.length > 0) {
+    return;
+  }
+  await inStore(STORES.syncedIds, "readwrite", (store) => store.clear()).catch(
+    () => undefined
+  );
 }
 
 async function shouldQueue(userId: string) {
@@ -208,11 +220,17 @@ async function queueEdits(userId: string, edits: QueuedEdit[]) {
 }
 
 async function reload(userId: string) {
-  const [queue, syncedIds] = await Promise.all([
+  const [queue, stored] = await Promise.all([
     readQueue(userId).catch(() => NO_EDITS),
     readSyncedIds().catch(() => ({})),
   ]);
-  queueStore.setState({ userId, queue, syncedIds });
+  queueStore.setState((state) => ({
+    userId,
+    queue,
+    // IDs this tab already knows stay known, even once storage forgets them.
+    syncedIds:
+      state.userId === userId ? { ...state.syncedIds, ...stored } : stored,
+  }));
 }
 
 async function readQueue(userId: string) {

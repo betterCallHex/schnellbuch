@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
+import { AccountSettings } from "@/components/account-settings";
 import { ImportDialog } from "@/components/import-dialog";
 import { Toolbar } from "@/components/toolbar";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,7 @@ function Settings() {
         <AgentChanges />
         <Bookmarklet />
         <ImportExport />
+        <AccountSettings />
       </div>
     </>
   );
@@ -167,7 +169,8 @@ function AgentChanges() {
           Recent agent changes
         </CardTitle>
         <CardDescription>
-          Bulk changes your agents made. Undo puts everything back in one step.
+          Everything your agents changed, newest first. Undo puts each change
+          back in one step.
         </CardDescription>
       </CardHeader>
       <CardContent>

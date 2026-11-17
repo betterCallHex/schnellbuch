@@ -1,5 +1,10 @@
 import { api } from "@schnellbuch/backend/api";
 import type { Doc, Id } from "@schnellbuch/backend/data-model";
+import {
+  folderAndDescendants,
+  isWithinFolder,
+  parentLookup,
+} from "@schnellbuch/backend/tree";
 import { normalizeUrl, placeholderTitle } from "@schnellbuch/backend/url";
 import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import { ConvexError } from "convex/values";
@@ -153,6 +158,9 @@ export function patchBookmark(
   return {
     ...bookmark,
     ...(change.title === undefined ? {} : { title: change.title.trim() }),
+    ...(change.note === undefined
+      ? {}
+      : { note: change.note.trim() || undefined }),
     ...(change.url === undefined ? {} : { url: normalizeUrl(change.url) }),
     ...(change.folderId === undefined
       ? {}
@@ -250,18 +258,9 @@ function cycleProblem(
   candidateId: FolderId,
   folderId: FolderId
 ) {
-  const parentById = new Map(
-    library.folders.map((folder) => [folder._id, folder.parentId])
-  );
-  for (
-    let currentId: FolderId | undefined = candidateId;
-    currentId;
-    currentId = parentById.get(currentId)
-  ) {
-    if (currentId === folderId) {
-      return FOLDER_INSIDE_ITSELF;
-    }
-  }
+  return isWithinFolder(parentLookup(library.folders), candidateId, folderId)
+    ? FOLDER_INSIDE_ITSELF
+    : undefined;
 }
 
 function urlProblem(url: string): string | undefined {
@@ -351,6 +350,7 @@ function addedBookmark(edit: EditOf<"addBookmark">, userId: string): Bookmark {
     userId,
     url,
     title: edit.args.title?.trim() || placeholderTitle(url),
+    note: edit.args.note?.trim() || undefined,
     folderId: edit.args.folderId,
     savedAt: edit.args.savedAt ?? edit.at,
   };
@@ -404,28 +404,13 @@ function withoutFolder(library: LibraryData, folderId: FolderId) {
 }
 
 function withoutSubtree(library: LibraryData, folderId: FolderId) {
-  const removed = subtreeIds(library.folders, folderId);
+  const removed = folderAndDescendants(library.folders, folderId);
   return {
     folders: library.folders.filter((folder) => !removed.has(folder._id)),
     bookmarks: library.bookmarks.filter(
       (bookmark) => !(bookmark.folderId && removed.has(bookmark.folderId))
     ),
   };
-}
-
-function subtreeIds(folders: Folder[], rootId: FolderId) {
-  const ids = new Set<string>();
-  let level: string[] = [rootId];
-  while (level.length > 0) {
-    const parents = new Set(level);
-    for (const id of level) {
-      ids.add(id);
-    }
-    level = folders
-      .filter((folder) => folder.parentId && parents.has(folder.parentId))
-      .map((folder) => folder._id);
-  }
-  return ids;
 }
 
 function copyName(original: Folder, parentId: FolderId | undefined) {

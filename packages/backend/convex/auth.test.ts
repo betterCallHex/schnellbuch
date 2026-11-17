@@ -73,6 +73,30 @@ describe("sign-up allow-list", () => {
   });
 });
 
+describe("password attempts", () => {
+  it("are capped per address, and other addresses aren't affected", async () => {
+    const t = createTest();
+    expect((await signUp(t, "owner@example.com")).status).toBe(200);
+
+    // Ten attempts per address, the sign-up included.
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 9; attempt += 1) {
+      // biome-ignore lint/performance/noAwaitInLoops: attempts happen one after another
+      const response = await post(t, "/api/auth/sign-in/email", {
+        email: "Owner@example.com",
+        password: "wrong password",
+      });
+      statuses.push(response.status);
+    }
+    const blocked = await signIn(t, "owner@example.com");
+
+    expect(new Set(statuses)).toEqual(new Set([401]));
+    expect(blocked.status).toBe(429);
+    expect(await blocked.json()).toMatchObject({ code: "TOO_MANY_ATTEMPTS" });
+    expect((await signUp(t, "kid@family.test")).status).toBe(200);
+  });
+});
+
 function signUp(t: TestClient, email: string) {
   return post(t, "/api/auth/sign-up/email", {
     email,

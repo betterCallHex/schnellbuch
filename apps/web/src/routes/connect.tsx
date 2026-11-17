@@ -2,6 +2,7 @@ import { api } from "@schnellbuch/backend/api";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { type FormEvent, useState } from "react";
+import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,18 +13,21 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { env } from "@/env";
 import { errorMessage } from "@/lib/errors";
+import { optionalText } from "@/lib/search-params";
+import { securityHeaders } from "@/lib/security-headers";
 
 export const Route = createFileRoute("/connect")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    request: typeof search.request === "string" ? search.request : undefined,
-  }),
+  validateSearch: z.object({ request: optionalText }),
   beforeLoad: ({ context, location }) => {
     if (!context.token) {
       throw redirect({ to: "/sign-in", search: { redirect: location.href } });
     }
   },
-  headers: () => ({ "Content-Security-Policy": "frame-ancestors 'none'" }),
+  // The root route's headers already forbid framing; repeated here so this
+  // page never loses them.
+  headers: () => securityHeaders(env.VITE_CONVEX_URL, env.VITE_CONVEX_SITE_URL),
   component: Connect,
 });
 

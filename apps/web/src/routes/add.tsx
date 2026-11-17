@@ -1,8 +1,8 @@
 import type { Id } from "@schnellbuch/backend/data-model";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-
 import { CheckIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import * as z from "zod";
 import { FolderSelect, TOP_LEVEL } from "@/components/folder-select";
 import { LibraryProvider } from "@/components/library-provider";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,13 @@ import { errorMessage, succeeded } from "@/lib/errors";
 import { recallFolder, rememberFolder } from "@/lib/last-folder";
 import { useLibrary, useLibraryMutations } from "@/lib/library";
 import { isTempId } from "@/lib/offline-queue";
+import { optionalText } from "@/lib/search-params";
+import { findSaved } from "@/lib/views";
 
 export const Route = createFileRoute("/add")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    url: typeof search.url === "string" ? search.url : "",
-    title: typeof search.title === "string" ? search.title : undefined,
+  validateSearch: z.object({
+    url: z.string().catch(""),
+    title: optionalText,
   }),
   beforeLoad: ({ context, location }) => {
     if (!(context.token || context.offlineUserId)) {
@@ -36,7 +38,7 @@ function AddFromBookmarklet() {
 type SaveState =
   | { status: "saving" }
   | {
-      status: "saved";
+      status: "saved" | "existing";
       bookmarkId: Id<"bookmarks">;
       folderId: Id<"folders"> | undefined;
     }
@@ -47,15 +49,26 @@ const FOLDER_GONE = "Folder not found.";
 function SaveFromBookmarklet() {
   const { url, title } = Route.useSearch();
   const { addBookmark } = useLibraryMutations();
+  const { loaded, bookmarks } = useLibrary();
   const [state, setState] = useState<SaveState>({ status: "saving" });
   const started = useRef(false);
 
   useEffect(() => {
     // biome-ignore lint/suspicious/noUnnecessaryConditions: React runs effects twice in StrictMode development, and a bookmark must be saved once
-    if (started.current) {
+    if (started.current || !loaded) {
       return;
     }
     started.current = true;
+    // Saved before: offer moving that one instead of saving it twice.
+    const existing = findSaved(bookmarks, url);
+    if (existing) {
+      setState({
+        status: "existing",
+        bookmarkId: existing._id,
+        folderId: existing.folderId,
+      });
+      return;
+    }
     const remembered = recallFolder() as Id<"folders"> | undefined;
     const save = async () => {
       try {
@@ -80,7 +93,7 @@ function SaveFromBookmarklet() {
       .catch((error: unknown) =>
         setState({ status: "failed", message: errorMessage(error) })
       );
-  }, [addBookmark, url, title]);
+  }, [addBookmark, url, title, loaded, bookmarks]);
 
   return (
     <main className="flex min-h-svh flex-col justify-center gap-4 p-6">
@@ -100,9 +113,11 @@ function SaveStatus({ state, title }: { state: SaveState; title: string }) {
         </p>
       );
     case "saved":
+    case "existing":
       return (
         <SavedBookmark
           bookmarkId={state.bookmarkId}
+          existing={state.status === "existing"}
           initialFolder={state.folderId}
           title={title}
         />
@@ -114,10 +129,12 @@ function SaveStatus({ state, title }: { state: SaveState; title: string }) {
 
 function SavedBookmark({
   bookmarkId,
+  existing,
   initialFolder,
   title,
 }: {
   bookmarkId: Id<"bookmarks">;
+  existing: boolean;
   initialFolder: Id<"folders"> | undefined;
   title: string;
 }) {
@@ -140,7 +157,7 @@ function SavedBookmark({
     <>
       <p className="flex items-center gap-2 text-sm font-medium">
         <CheckIcon aria-hidden className="size-4 text-green-600" />
-        {isTempId(bookmarkId) ? "Saved on this device" : "Saved"}
+        {savedLabel(bookmarkId, existing)}
       </p>
       {isTempId(bookmarkId) ? (
         <p className="text-muted-foreground text-sm">
@@ -162,4 +179,11 @@ function SavedBookmark({
       </Button>
     </>
   );
+}
+
+function savedLabel(bookmarkId: Id<"bookmarks">, existing: boolean) {
+  if (existing) {
+    return "Already saved";
+  }
+  return isTempId(bookmarkId) ? "Saved on this device" : "Saved";
 }

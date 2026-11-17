@@ -1,24 +1,31 @@
 import type { Id } from "@schnellbuch/backend/data-model";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
+import * as z from "zod";
 import { Breadcrumbs } from "@/components/breadcrumbs";
-import { FinderGrid, type GridItem } from "@/components/finder-grid";
+import {
+  FinderGrid,
+  type GridItem,
+  gridItemKey,
+} from "@/components/finder-grid";
 import { FolderGlyph } from "@/components/folder-glyph";
 import { Toolbar } from "@/components/toolbar";
 import { type FolderEntry, useLibrary } from "@/lib/library";
 import { useSyncedId } from "@/lib/offline-queue-store";
+import { optionalText } from "@/lib/search-params";
 import { useGoUpShortcut, usePaste } from "@/lib/shortcuts";
-import { bookmarksIn } from "@/lib/views";
+import { useViewPrefs } from "@/lib/view-prefs";
+import { bookmarksIn, sortBookmarks } from "@/lib/views";
 
 export const Route = createFileRoute("/_app/")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    folder: typeof search.folder === "string" ? search.folder : undefined,
-  }),
+  // select: a bookmark or folder to show selected, from "Show in folder".
+  validateSearch: z.object({ folder: optionalText, select: optionalText }),
   component: BrowsePage,
 });
 
 function BrowsePage() {
-  const { folder } = Route.useSearch();
+  const { folder, select } = Route.useSearch();
+  const { layout, sort } = useViewPrefs();
   const navigate = Route.useNavigate();
   const requestedId = folder as Id<"folders"> | undefined;
   const syncedFolder = useSyncedId(requestedId) as Id<"folders"> | undefined;
@@ -35,11 +42,20 @@ function BrowsePage() {
       itemCount:
         child.children.length + bookmarksIn(bookmarks, child._id).length,
     })),
-    ...bookmarksIn(bookmarks, folderId).map((bookmark) => ({
-      kind: "bookmark" as const,
-      bookmark,
-    })),
+    ...sortBookmarks(bookmarksIn(bookmarks, folderId), sort).map(
+      (bookmark) => ({
+        kind: "bookmark" as const,
+        bookmark,
+      })
+    ),
   ];
+  const revealed = select
+    ? items.find((item) =>
+        item.kind === "folder"
+          ? item.folder._id === select
+          : item.bookmark._id === select
+      )
+    : undefined;
 
   useEffect(() => {
     if (syncedFolder) {
@@ -52,7 +68,7 @@ function BrowsePage() {
 
   return (
     <>
-      <Toolbar>
+      <Toolbar view>
         <Breadcrumbs trail={trail} />
       </Toolbar>
       <main className="flex-1">
@@ -61,8 +77,10 @@ function BrowsePage() {
         {items.length > 0 ? (
           <FinderGrid
             items={items}
-            key={folderId ?? "top-level"}
+            key={`${folderId ?? "top-level"}:${layout}:${select ?? ""}`}
             label={current?.name ?? "Bookmarks"}
+            layout={layout}
+            revealKey={revealed ? gridItemKey(revealed) : undefined}
           />
         ) : null}
       </main>

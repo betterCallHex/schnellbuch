@@ -7,8 +7,9 @@ export type ClipboardItem =
   | { kind: "folder"; id: Id<"folders">; name: string };
 
 export interface Clip {
-  item: ClipboardItem;
+  items: ClipboardItem[];
   mode: "copy" | "cut";
+  // What went on the system clipboard: links and folder names, a line each.
   text: string;
 }
 
