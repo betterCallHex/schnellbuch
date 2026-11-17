@@ -20,7 +20,7 @@ All of these pass before work counts as done:
 
 ## Layout
 
-- `packages/backend`: the Convex backend. `convex/model/*` holds the logic as plain functions taking `(ctx, args)`. `convex/folders.ts` and `convex/bookmarks.ts` expose it to the signed-in user; `convex/agent.ts` exposes the same functions as internal functions for agents, checking every ID the model sends. `convex/mcp.ts` is the MCP server, built on `@convex-dev/mcp` (OAuth sign-in, API keys, scopes), served at `<CONVEX_SITE_URL>/mcp`. Every agent write records a change (`convex/model/changes.ts`) the user can undo. The backend only fetches pages through `convex/model/fetching.ts` (public addresses only, size-capped) and runs those fetches on the `fetchPool` workpool (`convex/model/pool.ts`); rate limits live in `convex/model/limits.ts`. Module names under `convex/` can't contain hyphens.
+- `packages/backend`: the Convex backend. `convex/model/*` holds the logic as plain functions taking `(ctx, args)`. `convex/folders.ts` and `convex/bookmarks.ts` expose it to the signed-in user; `convex/agent.ts` exposes the same functions as internal functions for agents, checking every ID the model sends. `convex/mcp.ts` is the MCP server, built on `@convex-dev/mcp` (OAuth sign-in, API keys, scopes), served at `<CONVEX_SITE_URL>/mcp`. Every agent write records a change (`convex/model/changes.ts`) the user can undo. The backend only fetches pages through `convex/model/fetching.ts` (public addresses only, size-capped) and runs those fetches on the `fetchPool` workpool (`convex/model/pool.ts`); rate limits live in `convex/model/limits.ts`. Sign-in is by emailed code only (Better Auth email OTP, no passwords); email goes out through `convex/email.ts` on Mailtrap's HTTP API, and is logged instead when `MAILTRAP_API_TOKEN` or `EMAIL_FROM` is unset. Module names under `convex/` can't contain hyphens.
 - `apps/web/src/routes/connect.tsx` is the page where users approve an agent. Keep it unframeable and keep the device-code check.
 - `packages/dev-stack`: `bun run dev:verify`, the per-worktree local stack.
 - `apps/web`: TanStack Start app. Routes in `src/routes`, the authenticated shell is `src/routes/_app.tsx`.
@@ -34,7 +34,7 @@ All of these pass before work counts as done:
 
 ## Verifying
 
-`bun run dev:verify` gives this worktree its own local Convex backend and web app, on ports derived from the worktree, seeded with two accounts (Ada and Bob) and printing their passwords and MCP keys. `down` stops it, `reseed` starts fresh. Parallel worktrees each get their own; nothing touches the shared dev deployment. The `verify` skill has the details.
+`bun run dev:verify` gives this worktree its own local Convex backend and web app, on ports derived from the worktree, seeded with two accounts (Ada and Bob) and printing their MCP keys; `bun run dev:verify code <email>` prints a sign-in code. `down` stops it, `reseed` starts fresh. Parallel worktrees each get their own; nothing touches the shared dev deployment. The `verify` skill has the details.
 
 ## Working with Convex
 

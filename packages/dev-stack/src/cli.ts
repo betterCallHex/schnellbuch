@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { seedAccounts } from "./seed";
+import { seedAccounts, signInCode } from "./seed";
 import {
   configureBackend,
   ensureBackendBinary,
@@ -17,13 +17,15 @@ import {
   writePrivate,
 } from "./stack";
 
-const USAGE = `bun run dev:verify [up|down|reseed|status]
+const USAGE = `bun run dev:verify [up|down|reseed|status|code <email>]
 
   up      (default) start this worktree's backend and web app, seed two
           accounts and print how to sign in and an MCP key for each
   down    stop this worktree's stack, keeping its data
   reseed  stop, delete this worktree's data, and start fresh
-  status  say whether the stack is running`;
+  status  say whether the stack is running
+  code    print a sign-in code for an address (replaces the one the
+          sign-in page asked for; no email is sent)`;
 
 async function up(state: StackState) {
   if (!(await isBackendUp(state))) {
@@ -54,11 +56,9 @@ function writeEnvFile(state: StackState) {
     CONVEX_SELF_HOSTED_URL: backend,
     CONVEX_SELF_HOSTED_ADMIN_KEY: state.adminKey ?? "",
     ADA_EMAIL: ada?.email ?? "",
-    ADA_PASSWORD: ada?.password ?? "",
     ADA_USER_ID: ada?.userId ?? "",
     ADA_MCP_KEY: ada?.apiKey ?? "",
     BOB_EMAIL: bob?.email ?? "",
-    BOB_PASSWORD: bob?.password ?? "",
     BOB_USER_ID: bob?.userId ?? "",
     BOB_MCP_KEY: bob?.apiKey ?? "",
   };
@@ -80,11 +80,12 @@ SchnellBuch dev stack "${state.name}" is up.
   Backend  ${backend}
   MCP      ${site}/mcp
 
-Sign in at ${web}/sign-in as:
+Sign in at ${web}/sign-in as one of these, with the code from
+  bun run dev:verify code <email>
 ${state.accounts
   .map(
     (account) =>
-      `  ${account.email}  password ${account.password}\n    user ${account.userId}  MCP key ${account.apiKey}`
+      `  ${account.email}\n    user ${account.userId}  MCP key ${account.apiKey}`
   )
   .join("\n")}
 
@@ -111,6 +112,16 @@ async function main() {
       wipeData(state);
       await up(state);
       return;
+    case "code": {
+      const [, , , email] = process.argv;
+      if (!email) {
+        console.log(USAGE);
+        process.exitCode = 1;
+        return;
+      }
+      console.log(signInCode(state, email));
+      return;
+    }
     case "status": {
       const [backendUp, webUp] = await Promise.all([
         isBackendUp(state),

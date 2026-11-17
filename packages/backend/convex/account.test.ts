@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, test as it, vi } from "vitest";
+import { post, session, signIn, signInWith } from "../testing/auth";
 import { createTest } from "../testing/convex";
 import { components, internal } from "./_generated/api";
 
 type TestClient = ReturnType<typeof createTest>;
 
-const PASSWORD = "correct horse battery";
+const SIX_DIGITS = /^\d{6}$/u;
 
 afterEach(() => {
   vi.useRealTimers();
@@ -14,8 +15,8 @@ describe("deleting an account", () => {
   it("removes the library, history and agent access, and nobody else's", async () => {
     vi.useFakeTimers();
     const t = createTest();
-    const owner = await signUp(t, "owner@example.com");
-    const other = await signUp(t, "kid@family.test");
+    const owner = await session(await signIn(t, "owner@example.com"));
+    const other = await session(await signIn(t, "kid@family.test"));
     for (const userId of [owner.userId, other.userId]) {
       // biome-ignore lint/performance/noAwaitInLoops: two users, one after the other
       await t.run(async (ctx) => {
@@ -35,12 +36,7 @@ describe("deleting an account", () => {
       await t.action(internal.mcp.createApiKeyForUser, { userId });
     }
 
-    const response = await post(
-      t,
-      "/api/auth/delete-user",
-      { password: PASSWORD },
-      owner.cookie
-    );
+    const response = await post(t, "/api/auth/delete-user", {}, owner.cookie);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     expect(response.status).toBe(200);
@@ -56,59 +52,38 @@ describe("deleting an account", () => {
       changes: 1,
       connections: 1,
     });
-    expect((await signIn(t, "owner@example.com", PASSWORD)).status).not.toBe(
-      200
-    );
   });
 
-  it("needs the account's password", async () => {
+  it("needs a sign-in code from the last five minutes", async () => {
+    vi.useFakeTimers();
     const t = createTest();
-    const owner = await signUp(t, "owner@example.com");
+    const owner = await session(await signIn(t, "owner@example.com"));
+    vi.advanceTimersByTime(6 * 60 * 1000);
 
-    const response = await post(
-      t,
-      "/api/auth/delete-user",
-      { password: "not the password" },
-      owner.cookie
-    );
+    const stale = await post(t, "/api/auth/delete-user", {}, owner.cookie);
+    const fresh = await session(await signIn(t, "owner@example.com"));
+    const confirmed = await post(t, "/api/auth/delete-user", {}, fresh.cookie);
 
-    expect(response.status).not.toBe(200);
-    expect((await signIn(t, "owner@example.com", PASSWORD)).status).toBe(200);
+    expect(stale.status).toBe(400);
+    expect(fresh.userId).toBe(owner.userId);
+    expect(confirmed.status).toBe(200);
   });
 });
 
-describe("setPassword", () => {
-  it("lets the deployment's owner reset a forgotten password", async () => {
+describe("signInCode", () => {
+  it("gives the deployment's owner a code that replaces the emailed one", async () => {
     const t = createTest();
-    await signUp(t, "owner@example.com");
-
-    await t.action(internal.account.setPassword, {
-      email: "Owner@Example.com",
-      password: "a brand new passphrase",
+    const first = await t.action(internal.account.signInCode, {
+      email: "owner@example.com",
     });
 
-    expect((await signIn(t, "owner@example.com", PASSWORD)).status).toBe(401);
-    expect(
-      (await signIn(t, "owner@example.com", "a brand new passphrase")).status
-    ).toBe(200);
-  });
+    const second = await t.action(internal.account.signInCode, {
+      email: "Owner@Example.com",
+    });
 
-  it("refuses an unknown address or a short password", async () => {
-    const t = createTest();
-    await signUp(t, "owner@example.com");
-
-    await expect(
-      t.action(internal.account.setPassword, {
-        email: "nobody@example.com",
-        password: "a brand new passphrase",
-      })
-    ).rejects.toThrow("No account for nobody@example.com.");
-    await expect(
-      t.action(internal.account.setPassword, {
-        email: "owner@example.com",
-        password: "short",
-      })
-    ).rejects.toThrow("A password needs");
+    expect(second).toMatch(SIX_DIGITS);
+    expect((await signInWith(t, "owner@example.com", second)).status).toBe(200);
+    expect(first === second).toBe(false);
   });
 });
 
@@ -137,34 +112,4 @@ async function countOwned(t: TestClient, userId: string) {
     ctx.runQuery(components.mcp.grants.list, { userId })
   );
   return { ...counts, connections: grants.length };
-}
-
-async function signUp(t: TestClient, email: string) {
-  const response = await post(t, "/api/auth/sign-up/email", {
-    email,
-    password: PASSWORD,
-    name: "Test",
-  });
-  const { user } = (await response.json()) as { user: { id: string } };
-  const cookie = response.headers
-    .getSetCookie()
-    .map((header) => header.split(";")[0])
-    .join("; ");
-  return { userId: user.id, cookie };
-}
-
-function signIn(t: TestClient, email: string, password: string) {
-  return post(t, "/api/auth/sign-in/email", { email, password });
-}
-
-function post(t: TestClient, path: string, body: unknown, cookie?: string) {
-  return t.fetch(path, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      origin: "http://localhost:3000",
-      ...(cookie ? { cookie } : {}),
-    },
-    body: JSON.stringify(body),
-  });
 }

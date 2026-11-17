@@ -1,4 +1,4 @@
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import { components, internal } from "./_generated/api";
 import { internalAction, internalMutation } from "./_generated/server";
 import { createAuth } from "./auth";
@@ -56,34 +56,15 @@ export const purge = internalMutation({
   },
 });
 
-// Sets a new password for an account and signs it out everywhere. For the
-// owner of a deployment when someone forgets theirs (SchnellBuch sends no
-// email), with deploy credentials:
-//   bunx convex run account:setPassword '{"email":"me@example.com","password":"…"}'
-export const setPassword = internalAction({
-  args: { email: v.string(), password: v.string() },
-  handler: async (ctx, { email, password }) => {
-    const context = await createAuth(ctx).$context;
-    const found = await context.internalAdapter.findUserByEmail(
-      email.trim().toLowerCase()
-    );
-    if (!found) {
-      throw new ConvexError(`No account for ${email}.`);
-    }
-    const { minPasswordLength, maxPasswordLength } = context.password.config;
-    if (
-      password.length < minPasswordLength ||
-      password.length > maxPasswordLength
-    ) {
-      throw new ConvexError(
-        `A password needs ${minPasswordLength} to ${maxPasswordLength} characters.`
-      );
-    }
-    await context.internalAdapter.updatePassword(
-      found.user.id,
-      await context.password.hash(password)
-    );
-    await context.internalAdapter.deleteUserSessions(found.user.id);
-    return { updated: found.user.email };
-  },
+// A sign-in code for an address, without sending any email. For the owner
+// of a deployment, with deploy credentials, when email isn't set up or
+// doesn't arrive, and for scripts that sign in test accounts:
+//   bunx convex run account:signInCode '{"email":"me@example.com"}'
+// It replaces any code already sent to that address.
+export const signInCode = internalAction({
+  args: { email: v.string() },
+  handler: (ctx, { email }) =>
+    createAuth(ctx).api.createVerificationOTP({
+      body: { email: email.trim().toLowerCase(), type: "sign-in" },
+    }),
 });

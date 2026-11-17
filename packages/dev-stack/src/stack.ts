@@ -37,7 +37,6 @@ const PRIVATE_FILE = 0o600;
 export interface Account {
   apiKey?: string;
   email: string;
-  password: string;
   userId?: string;
 }
 
@@ -71,7 +70,7 @@ function cacheRoot() {
   return env.XDG_CACHE_HOME ?? join(homedir(), ".cache");
 }
 
-// Outside the repo, so passwords, keys and data never end up in git.
+// Outside the repo, so keys and data never end up in git.
 export function stateDir(name = stackName(repoRoot)) {
   return join(cacheRoot(), "schnellbuch", "dev-verify", name);
 }
@@ -99,7 +98,6 @@ export async function loadOrCreateState(): Promise<StackState> {
     seeded: false,
     accounts: ["ada", "bob"].map((name) => ({
       email: `${name}@schnellbuch.test`,
-      password: randomBytes(12).toString("base64url"),
     })),
     pids: {},
   };

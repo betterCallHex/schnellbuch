@@ -1,18 +1,12 @@
 // Production smoke check: bun run smoke. Reads the site and MCP URLs (and,
-// optionally, an account and an MCP key) from the environment; never
-// changes data.
-import { api } from "@schnellbuch/backend/api";
+// optionally, an MCP key) from the environment; never changes data.
 import { createEnv } from "@t3-oss/env-core";
-import { ConvexHttpClient } from "convex/browser";
 import * as z from "zod";
 
 const env = createEnv({
   server: {
     SMOKE_SITE_URL: z.url(),
-    SMOKE_CONVEX_URL: z.url(),
     SMOKE_MCP_URL: z.url(),
-    SMOKE_EMAIL: z.string().optional(),
-    SMOKE_PASSWORD: z.string().optional(),
     SMOKE_MCP_KEY: z.string().optional(),
   },
   runtimeEnv: process.env,
@@ -51,22 +45,6 @@ function mcpRequest(method: string, key?: string) {
     },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method }),
   });
-}
-
-async function signIn() {
-  const response = await fetch(`${env.SMOKE_SITE_URL}/api/auth/sign-in/email`, {
-    method: "POST",
-    headers: { "content-type": "application/json", origin: env.SMOKE_SITE_URL },
-    body: JSON.stringify({
-      email: env.SMOKE_EMAIL,
-      password: env.SMOKE_PASSWORD,
-    }),
-  });
-  expect(response.ok, `sign-in answered ${response.status}`);
-  return response.headers
-    .getSetCookie()
-    .map((header) => header.split(";")[0])
-    .join("; ");
 }
 
 await check("sign-in page loads", async () => {
@@ -108,42 +86,14 @@ if (env.SMOKE_MCP_KEY) {
   });
 }
 
-if (env.SMOKE_EMAIL && env.SMOKE_PASSWORD) {
-  await check("sign in and see the library", async () => {
-    const cookie = await signIn();
-    const tokenResponse = await fetch(
-      `${env.SMOKE_SITE_URL}/api/auth/convex/token`,
-      { headers: { cookie } }
-    );
-    const { token } = (await tokenResponse.json()) as { token?: string };
-    expect(Boolean(token), "no Convex token");
-    const client = new ConvexHttpClient(env.SMOKE_CONVEX_URL);
-    client.setAuth(token ?? "");
-    const [folders, bookmarks] = await Promise.all([
-      client.query(api.folders.list, {}),
-      client.query(api.bookmarks.list, {}),
-    ]);
-    const connect = await fetch(`${env.SMOKE_SITE_URL}/connect`, {
-      headers: { cookie },
-    });
-    expect(
-      connect.headers
-        .get("content-security-policy")
-        ?.includes(FRAME_ANCESTORS_NONE) ?? false,
-      "/connect is missing frame-ancestors 'none'"
-    );
-    return `${folders.length} folders, ${bookmarks.length} bookmarks; /connect can't be framed`;
+await check("/connect can't be framed", async () => {
+  const response = await fetch(`${env.SMOKE_SITE_URL}/connect`, {
+    redirect: "manual",
   });
-} else {
-  await check("/connect can't be framed", async () => {
-    const response = await fetch(`${env.SMOKE_SITE_URL}/connect`, {
-      redirect: "manual",
-    });
-    const policy = response.headers.get("content-security-policy") ?? "";
-    expect(policy.includes(FRAME_ANCESTORS_NONE), `got "${policy}"`);
-    return FRAME_ANCESTORS_NONE;
-  });
-}
+  const policy = response.headers.get("content-security-policy") ?? "";
+  expect(policy.includes(FRAME_ANCESTORS_NONE), `got "${policy}"`);
+  return FRAME_ANCESTORS_NONE;
+});
 
 for (const { check: name, ok, detail } of results) {
   console.log(`${ok ? "✓" : "✗"} ${name}: ${detail}`);
