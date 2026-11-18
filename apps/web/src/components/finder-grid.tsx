@@ -9,6 +9,7 @@ import { cn } from "cn";
 import { CloudUploadIcon, TriangleAlertIcon } from "lucide-react";
 import {
   type MouseEvent,
+  type PointerEvent,
   type ReactNode,
   useEffect,
   useLayoutEffect,
@@ -38,6 +39,7 @@ import {
   useLibrary,
 } from "@/lib/library";
 import { useLibraryEdits } from "@/lib/library-edits";
+import { type Box, boxBetween, indexesInBox, type Point } from "@/lib/marquee";
 import { itemId, type LibraryItem, showSelection } from "@/lib/selection";
 import { putOnClipboard, SHORTCUTS } from "@/lib/shortcuts";
 import type { Layout } from "@/lib/view-prefs";
@@ -49,6 +51,7 @@ export type GridItem =
 
 const TILE_MIN_WIDTH_PX = 112;
 const TILE_GAP_PX = 8;
+const GRID_ROW_GAP_PX = 20;
 const ESTIMATED_ROW_PX = { grid: 136, list: 44 };
 const OVERSCAN_ROWS = 4;
 const SAVED_DATE = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
@@ -57,6 +60,12 @@ interface Selection {
   anchor?: string;
   keys: string[];
   lead?: string;
+}
+
+interface MarqueeDrag {
+  base: string[];
+  origin: Point;
+  pointer: Point;
 }
 
 export function FinderGrid({
@@ -79,7 +88,10 @@ export function FinderGrid({
   );
   const [columns, setColumns] = useState(1);
   const [scrollMargin, setScrollMargin] = useState(0);
+  const [marquee, setMarquee] = useState<Box>();
   const gridRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const marqueeDrag = useRef<MarqueeDrag | undefined>(undefined);
   const lastPointerType = useRef("mouse");
   const navigate = useNavigate();
   const openDialog = useOpenDialog();
@@ -164,6 +176,14 @@ export function FinderGrid({
       pendingFocus.current = undefined;
       tile.focus({ preventScroll: true });
     }
+  });
+
+  useEffect(() => {
+    if (!marquee) {
+      return;
+    }
+    window.addEventListener("scroll", dragMarquee, { passive: true });
+    return () => window.removeEventListener("scroll", dragMarquee);
   });
 
   function focusKey(key: string) {
@@ -258,6 +278,82 @@ export function FinderGrid({
     selectOnly(key);
   }
 
+  function pressBackground(event: PointerEvent<HTMLDivElement>) {
+    const additive = event.shiftKey || event.metaKey || event.ctrlKey;
+    if (!additive) {
+      selectOnly(undefined);
+    }
+    const pointer = { x: event.clientX, y: event.clientY };
+    const origin = pointInContent(pointer);
+    if (!origin || event.pointerType === "touch" || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.currentTarget.focus({ preventScroll: true });
+    event.currentTarget.setPointerCapture(event.pointerId);
+    marqueeDrag.current = {
+      base: additive ? [...selectedKeys] : [],
+      origin,
+      pointer,
+    };
+  }
+
+  function moveMarquee(event: PointerEvent) {
+    if (!marqueeDrag.current) {
+      return;
+    }
+    marqueeDrag.current.pointer = { x: event.clientX, y: event.clientY };
+    dragMarquee();
+  }
+
+  function dragMarquee() {
+    const drag = marqueeDrag.current;
+    const content = contentRef.current;
+    const to = drag && pointInContent(drag.pointer);
+    if (!(drag && content && to)) {
+      return;
+    }
+    const box = boxBetween(drag.origin, to);
+    const scrollOffset = virtualizer.options.scrollMargin;
+    const hits = indexesInBox({
+      box,
+      rows: virtualizer.measurementsCache.map((row) => ({
+        start: row.start - scrollOffset,
+        end: row.end - scrollOffset,
+      })),
+      columns: perRow,
+      width: content.clientWidth,
+      columnGap: layout === "grid" ? TILE_GAP_PX : 0,
+      rowGap: layout === "grid" ? GRID_ROW_GAP_PX : 0,
+      count: items.length,
+    }).flatMap((index) => keys[index] ?? []);
+    const chosen = new Set([...drag.base, ...hits]);
+    const [first] = hits;
+    setMarquee(box);
+    changeSelection({
+      keys: keys.filter((key) => chosen.has(key)),
+      anchor: first ?? selection.anchor,
+      lead: hits.at(-1) ?? selection.lead,
+    });
+  }
+
+  function endMarquee() {
+    marqueeDrag.current = undefined;
+    setMarquee(undefined);
+  }
+
+  function pointInContent(client: Point) {
+    const grid = gridRef.current?.getBoundingClientRect();
+    const content = contentRef.current?.getBoundingClientRect();
+    if (!(grid && content)) {
+      return;
+    }
+    return {
+      x: clamp(client.x, grid.left, grid.right) - content.left,
+      y: clamp(client.y, grid.top, grid.bottom) - content.top,
+    };
+  }
+
   useHotkeys(
     [
       ...GRID_ARROW_KEYS.flatMap((key) => [
@@ -310,19 +406,22 @@ export function FinderGrid({
     <div
       aria-label={label}
       aria-multiselectable
-      className="p-4 outline-none md:p-6"
+      className="flex-1 p-4 outline-none md:p-6"
+      onLostPointerCapture={endMarquee}
       onPointerDown={(event) => {
         lastPointerType.current = event.pointerType;
-        if (event.target === event.currentTarget) {
-          selectOnly(undefined);
+        if (!isOnTile(event.target)) {
+          pressBackground(event);
         }
       }}
+      onPointerMove={moveMarquee}
       ref={gridRef}
       role="listbox"
       tabIndex={leadItem ? -1 : 0}
     >
       <div
         className="relative w-full"
+        ref={contentRef}
         style={{ height: `${virtualizer.getTotalSize()}px` }}
       >
         {virtualRows.map((row) => {
@@ -386,9 +485,30 @@ export function FinderGrid({
             </div>
           );
         })}
+        {marquee ? (
+          <div
+            aria-hidden
+            className="border-selection bg-selection/15 pointer-events-none absolute z-10 rounded-sm border"
+            data-marquee
+            style={{
+              left: marquee.left,
+              top: marquee.top,
+              width: marquee.right - marquee.left,
+              height: marquee.bottom - marquee.top,
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );
+}
+
+function isOnTile(target: EventTarget) {
+  return target instanceof Element && target.closest("[data-key]") !== null;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 interface TileProps {

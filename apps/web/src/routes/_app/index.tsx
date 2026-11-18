@@ -71,7 +71,7 @@ function BrowsePage() {
       <Toolbar view>
         <Breadcrumbs trail={trail} />
       </Toolbar>
-      <main className="flex-1">
+      <main className="flex flex-1 flex-col">
         {missing ? <MissingFolder /> : null}
         {loaded && !missing && items.length === 0 ? <EmptyFolder /> : null}
         {items.length > 0 ? (
