@@ -63,7 +63,7 @@ interface Selection {
 }
 
 interface MarqueeDrag {
-  base: string[];
+  base: Selection;
   origin: Point;
   pointer: Point;
 }
@@ -292,7 +292,7 @@ export function FinderGrid({
     event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
     marqueeDrag.current = {
-      base: additive ? [...selectedKeys] : [],
+      base: additive ? { ...selection, keys: [...selectedKeys] } : { keys: [] },
       origin,
       pointer,
     };
@@ -327,13 +327,13 @@ export function FinderGrid({
       rowGap: layout === "grid" ? GRID_ROW_GAP_PX : 0,
       count: items.length,
     }).flatMap((index) => keys[index] ?? []);
-    const chosen = new Set([...drag.base, ...hits]);
+    const chosen = new Set([...drag.base.keys, ...hits]);
     const [first] = hits;
     setMarquee(box);
     changeSelection({
       keys: keys.filter((key) => chosen.has(key)),
-      anchor: first ?? selection.anchor,
-      lead: hits.at(-1) ?? selection.lead,
+      anchor: first ?? drag.base.anchor,
+      lead: hits.at(-1) ?? drag.base.lead,
     });
   }
 
@@ -410,7 +410,7 @@ export function FinderGrid({
       onLostPointerCapture={endMarquee}
       onPointerDown={(event) => {
         lastPointerType.current = event.pointerType;
-        if (!isOnTile(event.target)) {
+        if (isOnBackground(event.currentTarget, event.target)) {
           pressBackground(event);
         }
       }}
@@ -503,8 +503,12 @@ export function FinderGrid({
   );
 }
 
-function isOnTile(target: EventTarget) {
-  return target instanceof Element && target.closest("[data-key]") !== null;
+function isOnBackground(grid: Element, target: EventTarget) {
+  return (
+    target instanceof Element &&
+    grid.contains(target) &&
+    target.closest("[data-key]") === null
+  );
 }
 
 function clamp(value: number, min: number, max: number) {
