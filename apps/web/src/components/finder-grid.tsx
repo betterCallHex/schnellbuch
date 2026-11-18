@@ -1,5 +1,5 @@
 import { useDraggable, useDroppable } from "@dnd-kit/react";
-import { useHotkeys } from "@tanstack/react-hotkeys";
+import { detectPlatform, useHotkeys } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
 import {
   defaultRangeExtractor,
@@ -9,6 +9,7 @@ import { cn } from "cn";
 import { CloudUploadIcon, TriangleAlertIcon } from "lucide-react";
 import {
   type MouseEvent,
+  type PointerEvent,
   type ReactNode,
   useEffect,
   useLayoutEffect,
@@ -38,6 +39,14 @@ import {
   useLibrary,
 } from "@/lib/library";
 import { useLibraryEdits } from "@/lib/library-edits";
+import {
+  type Box,
+  boxBetween,
+  combineSelection,
+  edgeScrollSpeed,
+  indexesInBox,
+  type Point,
+} from "@/lib/marquee";
 import { itemId, type LibraryItem, showSelection } from "@/lib/selection";
 import { putOnClipboard, SHORTCUTS } from "@/lib/shortcuts";
 import type { Layout } from "@/lib/view-prefs";
@@ -49,6 +58,7 @@ export type GridItem =
 
 const TILE_MIN_WIDTH_PX = 112;
 const TILE_GAP_PX = 8;
+const GRID_ROW_GAP_PX = 20;
 const ESTIMATED_ROW_PX = { grid: 136, list: 44 };
 const OVERSCAN_ROWS = 4;
 const SAVED_DATE = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
@@ -57,6 +67,15 @@ interface Selection {
   anchor?: string;
   keys: string[];
   lead?: string;
+}
+
+interface MarqueeDrag {
+  base: Selection;
+  before: Selection;
+  origin: Point;
+  pointer: Point;
+  pointerId: number;
+  toggle: boolean;
 }
 
 export function FinderGrid({
@@ -79,7 +98,11 @@ export function FinderGrid({
   );
   const [columns, setColumns] = useState(1);
   const [scrollMargin, setScrollMargin] = useState(0);
+  const [marquee, setMarquee] = useState<Box>();
   const gridRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const marqueeDrag = useRef<MarqueeDrag | undefined>(undefined);
+  const edgeScrollFrame = useRef<number | undefined>(undefined);
   const lastPointerType = useRef("mouse");
   const navigate = useNavigate();
   const openDialog = useOpenDialog();
@@ -144,6 +167,15 @@ export function FinderGrid({
 
   useEffect(() => () => showSelection([]), []);
 
+  useEffect(
+    () => () => {
+      if (edgeScrollFrame.current !== undefined) {
+        cancelAnimationFrame(edgeScrollFrame.current);
+      }
+    },
+    []
+  );
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: only when the folder opens with a tile to reveal
   useEffect(() => {
     if (revealKey) {
@@ -164,6 +196,14 @@ export function FinderGrid({
       pendingFocus.current = undefined;
       tile.focus({ preventScroll: true });
     }
+  });
+
+  useEffect(() => {
+    if (!marquee) {
+      return;
+    }
+    window.addEventListener("scroll", dragMarquee, { passive: true });
+    return () => window.removeEventListener("scroll", dragMarquee);
   });
 
   function focusKey(key: string) {
@@ -258,6 +298,132 @@ export function FinderGrid({
     selectOnly(key);
   }
 
+  function pressBackground(event: PointerEvent<HTMLDivElement>) {
+    const mac = detectPlatform() === "mac";
+    if (mac && event.ctrlKey) {
+      return;
+    }
+    const toggle = event.metaKey || (!mac && event.ctrlKey);
+    const additive = toggle || event.shiftKey;
+    if (!additive) {
+      selectOnly(undefined);
+    }
+    const pointer = { x: event.clientX, y: event.clientY };
+    const origin = pointInContent(pointer);
+    if (!origin || event.pointerType === "touch" || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.currentTarget.focus({ preventScroll: true });
+    event.currentTarget.setPointerCapture(event.pointerId);
+    marqueeDrag.current = {
+      before: { ...selection, keys: [...selectedKeys] },
+      pointerId: event.pointerId,
+      base: additive ? { ...selection, keys: [...selectedKeys] } : { keys: [] },
+      origin,
+      pointer,
+      toggle,
+    };
+  }
+
+  function moveMarquee(event: PointerEvent) {
+    if (!marqueeDrag.current) {
+      return;
+    }
+    marqueeDrag.current.pointer = { x: event.clientX, y: event.clientY };
+    dragMarquee();
+    scrollNearEdge();
+  }
+
+  function scrollNearEdge() {
+    edgeScrollFrame.current ??= requestAnimationFrame(stepEdgeScroll);
+  }
+
+  function stepEdgeScroll() {
+    edgeScrollFrame.current = undefined;
+    const drag = marqueeDrag.current;
+    const view = { top: belowToolbar(), bottom: window.innerHeight };
+    const speed = drag ? edgeScrollSpeed(drag.pointer.y, view) : 0;
+    const scrolledFrom = window.scrollY;
+    window.scrollBy(0, speed);
+    if (window.scrollY !== scrolledFrom) {
+      scrollNearEdge();
+    }
+  }
+
+  function dragMarquee() {
+    const drag = marqueeDrag.current;
+    const content = contentRef.current;
+    const to = drag && pointInContent(drag.pointer);
+    if (!(drag && content && to)) {
+      return;
+    }
+    const box = boxBetween(drag.origin, to);
+    const scrollOffset = virtualizer.options.scrollMargin;
+    const hits = indexesInBox({
+      box,
+      rows: virtualizer.measurementsCache.map((row) => ({
+        start: row.start - scrollOffset,
+        end: row.end - scrollOffset,
+      })),
+      columns: perRow,
+      width: content.clientWidth,
+      columnGap: layout === "grid" ? TILE_GAP_PX : 0,
+      rowGap: layout === "grid" ? GRID_ROW_GAP_PX : 0,
+      count: items.length,
+    }).flatMap((index) => keys[index] ?? []);
+    const chosen = combineSelection({
+      keys,
+      base: drag.base.keys,
+      hits,
+      toggle: drag.toggle,
+    });
+    const chosenHits = hits.filter((key) => chosen.includes(key));
+    const stillChosen = (key: string | undefined) =>
+      key !== undefined && chosen.includes(key) ? key : undefined;
+    setMarquee(box);
+    changeSelection({
+      keys: chosen,
+      anchor: chosenHits[0] ?? stillChosen(drag.base.anchor) ?? chosen[0],
+      lead: chosenHits.at(-1) ?? stillChosen(drag.base.lead) ?? chosen.at(-1),
+    });
+  }
+
+  function endMarquee() {
+    stopEdgeScroll();
+    setMarquee(undefined);
+  }
+
+  function stopEdgeScroll() {
+    if (edgeScrollFrame.current !== undefined) {
+      cancelAnimationFrame(edgeScrollFrame.current);
+      edgeScrollFrame.current = undefined;
+    }
+    marqueeDrag.current = undefined;
+  }
+
+  function cancelMarquee() {
+    const drag = marqueeDrag.current;
+    if (!drag) {
+      return;
+    }
+    changeSelection(drag.before);
+    gridRef.current?.releasePointerCapture(drag.pointerId);
+    endMarquee();
+  }
+
+  function pointInContent(client: Point) {
+    const grid = gridRef.current?.getBoundingClientRect();
+    const content = contentRef.current?.getBoundingClientRect();
+    if (!(grid && content)) {
+      return;
+    }
+    return {
+      x: clamp(client.x, grid.left, grid.right) - content.left,
+      y: clamp(client.y, grid.top, grid.bottom) - content.top,
+    };
+  }
+
   useHotkeys(
     [
       ...GRID_ARROW_KEYS.flatMap((key) => [
@@ -276,7 +442,11 @@ export function FinderGrid({
         hotkey: "Mod+Backspace",
         callback: () => selectedItems.length > 0 && remove(),
       },
-      { hotkey: "Escape", callback: () => selectOnly(undefined) },
+      {
+        hotkey: "Escape",
+        callback: () =>
+          marqueeDrag.current ? cancelMarquee() : selectOnly(undefined),
+      },
       {
         hotkey: "Mod+A",
         callback: () =>
@@ -310,19 +480,22 @@ export function FinderGrid({
     <div
       aria-label={label}
       aria-multiselectable
-      className="p-4 outline-none md:p-6"
+      className="flex-1 p-4 outline-none md:p-6"
+      onLostPointerCapture={endMarquee}
       onPointerDown={(event) => {
         lastPointerType.current = event.pointerType;
-        if (event.target === event.currentTarget) {
-          selectOnly(undefined);
+        if (isOnBackground(event.currentTarget, event.target)) {
+          pressBackground(event);
         }
       }}
+      onPointerMove={moveMarquee}
       ref={gridRef}
       role="listbox"
       tabIndex={leadItem ? -1 : 0}
     >
       <div
         className="relative w-full"
+        ref={contentRef}
         style={{ height: `${virtualizer.getTotalSize()}px` }}
       >
         {virtualRows.map((row) => {
@@ -386,9 +559,38 @@ export function FinderGrid({
             </div>
           );
         })}
+        {marquee ? (
+          <div
+            aria-hidden
+            className="border-selection bg-selection/15 pointer-events-none absolute z-10 rounded-sm border"
+            data-marquee
+            style={{
+              left: marquee.left,
+              top: marquee.top,
+              width: marquee.right - marquee.left,
+              height: marquee.bottom - marquee.top,
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );
+}
+
+function isOnBackground(grid: Element, target: EventTarget) {
+  return (
+    target instanceof Element &&
+    grid.contains(target) &&
+    target.closest("[data-key]") === null
+  );
+}
+
+function belowToolbar() {
+  return document.querySelector("header")?.getBoundingClientRect().bottom ?? 0;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 interface TileProps {
