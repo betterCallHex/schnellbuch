@@ -86,10 +86,12 @@ export function combineSelection({
   );
 }
 
-export function edgeScrollSpeed(pointerY: number, viewportHeight: number) {
-  const intoTop = (EDGE_ZONE_PX - pointerY) / EDGE_ZONE_PX;
-  const intoBottom =
-    (pointerY - (viewportHeight - EDGE_ZONE_PX)) / EDGE_ZONE_PX;
+export function edgeScrollSpeed(
+  pointerY: number,
+  view: { top: number; bottom: number }
+) {
+  const intoTop = (view.top + EDGE_ZONE_PX - pointerY) / EDGE_ZONE_PX;
+  const intoBottom = (pointerY - (view.bottom - EDGE_ZONE_PX)) / EDGE_ZONE_PX;
   if (intoTop > 0) {
     return -Math.round(MAX_EDGE_SCROLL_PX * Math.min(intoTop, 1));
   }

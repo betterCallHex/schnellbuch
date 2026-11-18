@@ -1,5 +1,5 @@
 import { useDraggable, useDroppable } from "@dnd-kit/react";
-import { useHotkeys } from "@tanstack/react-hotkeys";
+import { detectPlatform, useHotkeys } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
 import {
   defaultRangeExtractor,
@@ -71,8 +71,10 @@ interface Selection {
 
 interface MarqueeDrag {
   base: Selection;
+  before: Selection;
   origin: Point;
   pointer: Point;
+  pointerId: number;
   toggle: boolean;
 }
 
@@ -164,6 +166,15 @@ export function FinderGrid({
   }, [selectedIds]);
 
   useEffect(() => () => showSelection([]), []);
+
+  useEffect(
+    () => () => {
+      if (edgeScrollFrame.current !== undefined) {
+        cancelAnimationFrame(edgeScrollFrame.current);
+      }
+    },
+    []
+  );
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: only when the folder opens with a tile to reveal
   useEffect(() => {
@@ -288,7 +299,11 @@ export function FinderGrid({
   }
 
   function pressBackground(event: PointerEvent<HTMLDivElement>) {
-    const toggle = event.metaKey || event.ctrlKey;
+    const mac = detectPlatform() === "mac";
+    if (mac && event.ctrlKey) {
+      return;
+    }
+    const toggle = event.metaKey || (!mac && event.ctrlKey);
     const additive = toggle || event.shiftKey;
     if (!additive) {
       selectOnly(undefined);
@@ -302,6 +317,8 @@ export function FinderGrid({
     event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
     marqueeDrag.current = {
+      before: { ...selection, keys: [...selectedKeys] },
+      pointerId: event.pointerId,
       base: additive ? { ...selection, keys: [...selectedKeys] } : { keys: [] },
       origin,
       pointer,
@@ -325,9 +342,8 @@ export function FinderGrid({
   function stepEdgeScroll() {
     edgeScrollFrame.current = undefined;
     const drag = marqueeDrag.current;
-    const speed = drag
-      ? edgeScrollSpeed(drag.pointer.y, window.innerHeight)
-      : 0;
+    const view = { top: belowToolbar(), bottom: window.innerHeight };
+    const speed = drag ? edgeScrollSpeed(drag.pointer.y, view) : 0;
     const scrolledFrom = window.scrollY;
     window.scrollBy(0, speed);
     if (window.scrollY !== scrolledFrom) {
@@ -356,27 +372,44 @@ export function FinderGrid({
       rowGap: layout === "grid" ? GRID_ROW_GAP_PX : 0,
       count: items.length,
     }).flatMap((index) => keys[index] ?? []);
-    const [first] = hits;
+    const chosen = combineSelection({
+      keys,
+      base: drag.base.keys,
+      hits,
+      toggle: drag.toggle,
+    });
+    const chosenHits = hits.filter((key) => chosen.includes(key));
+    const stillChosen = (key: string | undefined) =>
+      key !== undefined && chosen.includes(key) ? key : undefined;
     setMarquee(box);
     changeSelection({
-      keys: combineSelection({
-        keys,
-        base: drag.base.keys,
-        hits,
-        toggle: drag.toggle,
-      }),
-      anchor: first ?? drag.base.anchor,
-      lead: hits.at(-1) ?? drag.base.lead,
+      keys: chosen,
+      anchor: chosenHits[0] ?? stillChosen(drag.base.anchor) ?? chosen[0],
+      lead: chosenHits.at(-1) ?? stillChosen(drag.base.lead) ?? chosen.at(-1),
     });
   }
 
   function endMarquee() {
+    stopEdgeScroll();
+    setMarquee(undefined);
+  }
+
+  function stopEdgeScroll() {
     if (edgeScrollFrame.current !== undefined) {
       cancelAnimationFrame(edgeScrollFrame.current);
       edgeScrollFrame.current = undefined;
     }
     marqueeDrag.current = undefined;
-    setMarquee(undefined);
+  }
+
+  function cancelMarquee() {
+    const drag = marqueeDrag.current;
+    if (!drag) {
+      return;
+    }
+    changeSelection(drag.before);
+    gridRef.current?.releasePointerCapture(drag.pointerId);
+    endMarquee();
   }
 
   function pointInContent(client: Point) {
@@ -409,7 +442,11 @@ export function FinderGrid({
         hotkey: "Mod+Backspace",
         callback: () => selectedItems.length > 0 && remove(),
       },
-      { hotkey: "Escape", callback: () => selectOnly(undefined) },
+      {
+        hotkey: "Escape",
+        callback: () =>
+          marqueeDrag.current ? cancelMarquee() : selectOnly(undefined),
+      },
       {
         hotkey: "Mod+A",
         callback: () =>
@@ -546,6 +583,10 @@ function isOnBackground(grid: Element, target: EventTarget) {
     grid.contains(target) &&
     target.closest("[data-key]") === null
   );
+}
+
+function belowToolbar() {
+  return document.querySelector("header")?.getBoundingClientRect().bottom ?? 0;
 }
 
 function clamp(value: number, min: number, max: number) {

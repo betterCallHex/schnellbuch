@@ -96,21 +96,28 @@ describe("combineSelection", () => {
 });
 
 describe("edgeScrollSpeed", () => {
+  const VIEW = { top: 0, bottom: 800 };
+
   it("stays still away from the edges", () => {
-    expect(edgeScrollSpeed(400, 800)).toBe(0);
+    expect(edgeScrollSpeed(400, VIEW)).toBe(0);
   });
 
   it("scrolls faster the deeper the pointer goes into an edge", () => {
-    expect(edgeScrollSpeed(10, 800)).toBeLessThan(edgeScrollSpeed(30, 800));
-    expect(edgeScrollSpeed(30, 800)).toBeLessThan(0);
-    expect(edgeScrollSpeed(790, 800)).toBeGreaterThan(
-      edgeScrollSpeed(770, 800)
+    expect(edgeScrollSpeed(10, VIEW)).toBeLessThan(edgeScrollSpeed(30, VIEW));
+    expect(edgeScrollSpeed(30, VIEW)).toBeLessThan(0);
+    expect(edgeScrollSpeed(790, VIEW)).toBeGreaterThan(
+      edgeScrollSpeed(770, VIEW)
     );
-    expect(edgeScrollSpeed(770, 800)).toBeGreaterThan(0);
+    expect(edgeScrollSpeed(770, VIEW)).toBeGreaterThan(0);
+  });
+
+  it("measures the top edge from below the toolbar", () => {
+    expect(edgeScrollSpeed(60, { top: 50, bottom: 800 })).toBeLessThan(0);
+    expect(edgeScrollSpeed(120, { top: 50, bottom: 800 })).toBe(0);
   });
 
   it("caps the speed once the pointer leaves the window", () => {
-    expect(edgeScrollSpeed(2000, 800)).toBe(edgeScrollSpeed(800, 800));
-    expect(edgeScrollSpeed(-500, 800)).toBe(edgeScrollSpeed(0, 800));
+    expect(edgeScrollSpeed(2000, VIEW)).toBe(edgeScrollSpeed(800, VIEW));
+    expect(edgeScrollSpeed(-500, VIEW)).toBe(edgeScrollSpeed(0, VIEW));
   });
 });
