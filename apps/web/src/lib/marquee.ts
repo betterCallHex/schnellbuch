@@ -1,3 +1,6 @@
+const EDGE_ZONE_PX = 48;
+const MAX_EDGE_SCROLL_PX = 24;
+
 export interface Point {
   x: number;
   y: number;
@@ -61,4 +64,37 @@ export function indexesInBox({
 
 function overlapsVertically(box: Box, row: { top: number; bottom: number }) {
   return box.top < row.bottom && box.bottom > row.top;
+}
+
+export function combineSelection({
+  keys,
+  base,
+  hits,
+  toggle,
+}: {
+  keys: string[];
+  base: string[];
+  hits: string[];
+  toggle: boolean;
+}) {
+  const before = new Set(base);
+  const touched = new Set(hits);
+  return keys.filter((key) =>
+    toggle
+      ? before.has(key) !== touched.has(key)
+      : before.has(key) || touched.has(key)
+  );
+}
+
+export function edgeScrollSpeed(pointerY: number, viewportHeight: number) {
+  const intoTop = (EDGE_ZONE_PX - pointerY) / EDGE_ZONE_PX;
+  const intoBottom =
+    (pointerY - (viewportHeight - EDGE_ZONE_PX)) / EDGE_ZONE_PX;
+  if (intoTop > 0) {
+    return -Math.round(MAX_EDGE_SCROLL_PX * Math.min(intoTop, 1));
+  }
+  if (intoBottom > 0) {
+    return Math.round(MAX_EDGE_SCROLL_PX * Math.min(intoBottom, 1));
+  }
+  return 0;
 }

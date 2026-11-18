@@ -39,7 +39,14 @@ import {
   useLibrary,
 } from "@/lib/library";
 import { useLibraryEdits } from "@/lib/library-edits";
-import { type Box, boxBetween, indexesInBox, type Point } from "@/lib/marquee";
+import {
+  type Box,
+  boxBetween,
+  combineSelection,
+  edgeScrollSpeed,
+  indexesInBox,
+  type Point,
+} from "@/lib/marquee";
 import { itemId, type LibraryItem, showSelection } from "@/lib/selection";
 import { putOnClipboard, SHORTCUTS } from "@/lib/shortcuts";
 import type { Layout } from "@/lib/view-prefs";
@@ -66,6 +73,7 @@ interface MarqueeDrag {
   base: Selection;
   origin: Point;
   pointer: Point;
+  toggle: boolean;
 }
 
 export function FinderGrid({
@@ -92,6 +100,7 @@ export function FinderGrid({
   const gridRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const marqueeDrag = useRef<MarqueeDrag | undefined>(undefined);
+  const edgeScrollFrame = useRef<number | undefined>(undefined);
   const lastPointerType = useRef("mouse");
   const navigate = useNavigate();
   const openDialog = useOpenDialog();
@@ -279,7 +288,8 @@ export function FinderGrid({
   }
 
   function pressBackground(event: PointerEvent<HTMLDivElement>) {
-    const additive = event.shiftKey || event.metaKey || event.ctrlKey;
+    const toggle = event.metaKey || event.ctrlKey;
+    const additive = toggle || event.shiftKey;
     if (!additive) {
       selectOnly(undefined);
     }
@@ -295,6 +305,7 @@ export function FinderGrid({
       base: additive ? { ...selection, keys: [...selectedKeys] } : { keys: [] },
       origin,
       pointer,
+      toggle,
     };
   }
 
@@ -304,6 +315,24 @@ export function FinderGrid({
     }
     marqueeDrag.current.pointer = { x: event.clientX, y: event.clientY };
     dragMarquee();
+    scrollNearEdge();
+  }
+
+  function scrollNearEdge() {
+    edgeScrollFrame.current ??= requestAnimationFrame(stepEdgeScroll);
+  }
+
+  function stepEdgeScroll() {
+    edgeScrollFrame.current = undefined;
+    const drag = marqueeDrag.current;
+    const speed = drag
+      ? edgeScrollSpeed(drag.pointer.y, window.innerHeight)
+      : 0;
+    const scrolledFrom = window.scrollY;
+    window.scrollBy(0, speed);
+    if (window.scrollY !== scrolledFrom) {
+      scrollNearEdge();
+    }
   }
 
   function dragMarquee() {
@@ -327,17 +356,25 @@ export function FinderGrid({
       rowGap: layout === "grid" ? GRID_ROW_GAP_PX : 0,
       count: items.length,
     }).flatMap((index) => keys[index] ?? []);
-    const chosen = new Set([...drag.base.keys, ...hits]);
     const [first] = hits;
     setMarquee(box);
     changeSelection({
-      keys: keys.filter((key) => chosen.has(key)),
+      keys: combineSelection({
+        keys,
+        base: drag.base.keys,
+        hits,
+        toggle: drag.toggle,
+      }),
       anchor: first ?? drag.base.anchor,
       lead: hits.at(-1) ?? drag.base.lead,
     });
   }
 
   function endMarquee() {
+    if (edgeScrollFrame.current !== undefined) {
+      cancelAnimationFrame(edgeScrollFrame.current);
+      edgeScrollFrame.current = undefined;
+    }
     marqueeDrag.current = undefined;
     setMarquee(undefined);
   }

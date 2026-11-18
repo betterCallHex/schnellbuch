@@ -2,7 +2,7 @@
 
 Fast, open-source bookmarks that work in every browser, and that your AI agents can manage for you.
 
-- **Finder-style browsing**: folders and bookmarks as icons or as a list, sorted by date saved or by name, a path bar, back and forward. Click to select, ⌘-click, ⇧-click or drag a box across them to select several, ⌘A for all, double-click or ↵ to open, ⌘↑ to go up, right-click for actions, ⌘⌫ to delete (with Undo). Folders with thousands of bookmarks stay fast.
+- **Finder-style browsing**: folders and bookmarks as icons or as a list, sorted by date saved or by name, a path bar, back and forward. Click to select, ⌘-click, ⇧-click or drag a box across them to select several (⌘-drag flips them, the window scrolls at its edges), ⌘A for all, double-click or ↵ to open, ⌘↑ to go up, right-click for actions, ⌘⌫ to delete (with Undo). Folders with thousands of bookmarks stay fast.
 - **Drag and drop** onto folders, or onto the path bar to move things up. Dragging one of several selected items moves them all, as one Undo.
 - **⌘V** with a link copied saves it into the folder you're looking at. A link you already have isn't saved twice: SchnellBuch says where it is, with a button to show it.
 - **⌘K** searches every bookmark (title, link and note) and folder as you type (fuzzy: `cnvx hub` finds "Convex Developer Hub", `dv cnvx` the folder "Dev / Convex"). ⌘↵ shows the highlighted bookmark in its folder. Paste a link into it to save it.

@@ -1,5 +1,10 @@
 import { describe, expect, test as it } from "bun:test";
-import { boxBetween, indexesInBox } from "./marquee";
+import {
+  boxBetween,
+  combineSelection,
+  edgeScrollSpeed,
+  indexesInBox,
+} from "./marquee";
 
 const GRID = {
   rows: [
@@ -61,5 +66,51 @@ describe("indexesInBox", () => {
         ],
       })
     ).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe("combineSelection", () => {
+  const keys = ["a", "b", "c", "d"];
+
+  it("adds the box to the selection", () => {
+    expect(
+      combineSelection({
+        keys,
+        base: ["a", "c"],
+        hits: ["c", "d"],
+        toggle: false,
+      })
+    ).toEqual(["a", "c", "d"]);
+  });
+
+  it("flips the tiles under the box when toggling, like ⌘-drag in Finder", () => {
+    expect(
+      combineSelection({
+        keys,
+        base: ["a", "c"],
+        hits: ["c", "d"],
+        toggle: true,
+      })
+    ).toEqual(["a", "d"]);
+  });
+});
+
+describe("edgeScrollSpeed", () => {
+  it("stays still away from the edges", () => {
+    expect(edgeScrollSpeed(400, 800)).toBe(0);
+  });
+
+  it("scrolls faster the deeper the pointer goes into an edge", () => {
+    expect(edgeScrollSpeed(10, 800)).toBeLessThan(edgeScrollSpeed(30, 800));
+    expect(edgeScrollSpeed(30, 800)).toBeLessThan(0);
+    expect(edgeScrollSpeed(790, 800)).toBeGreaterThan(
+      edgeScrollSpeed(770, 800)
+    );
+    expect(edgeScrollSpeed(770, 800)).toBeGreaterThan(0);
+  });
+
+  it("caps the speed once the pointer leaves the window", () => {
+    expect(edgeScrollSpeed(2000, 800)).toBe(edgeScrollSpeed(800, 800));
+    expect(edgeScrollSpeed(-500, 800)).toBe(edgeScrollSpeed(0, 800));
   });
 });
