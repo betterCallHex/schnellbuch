@@ -1,5 +1,5 @@
 import { ConvexError, type Infer, v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
   agentMutation,
   agentQuery,
@@ -13,6 +13,7 @@ import { findDuplicateGroups } from "./model/duplicates";
 import * as folders from "./model/folders";
 import { queueLinkChecks } from "./model/links";
 import { searchBookmarks as rankBookmarks } from "./model/search";
+import { cleanTags, splitTags, storedTags, tagsOf } from "./model/tags";
 import { normalizeUrl } from "./model/url";
 import type { undoStep } from "./schema";
 
@@ -24,6 +25,11 @@ const MAX_DUPLICATE_GROUPS = 50;
 const MAX_QUERY_LENGTH = 200;
 
 const DEFAULT_FOLDER_LIMIT = 100;
+
+const tagFilterArgs = {
+  tags: v.optional(v.array(v.string())),
+  withoutTags: v.optional(v.array(v.string())),
+};
 
 export const listFolders = agentQuery({
   args: {
@@ -50,16 +56,17 @@ export const listBookmarks = agentQuery({
     folderId: v.optional(v.union(v.string(), v.null())),
     limit: v.optional(v.number()),
     cursor: v.optional(v.union(v.string(), v.null())),
+    ...tagFilterArgs,
   },
-  handler: async (ctx, { folderId, limit, cursor }) => {
+  handler: async (ctx, { folderId, limit, cursor, ...tagFilter }) => {
     const library = await readLibrary(ctx);
     const wanted = folderTarget(ctx, folderId);
-    const inFolder =
-      wanted === undefined
-        ? library.bookmarks
-        : library.bookmarks.filter(
-            (bookmark) => (bookmark.folderId ?? null) === wanted
-          );
+    const inFolder = library.bookmarks
+      .filter(
+        (bookmark) =>
+          wanted === undefined || (bookmark.folderId ?? null) === wanted
+      )
+      .filter(matchingTags(tagFilter));
     const start = offsetFrom(cursor);
     const end = start + clampLimit(limit);
     return {
@@ -74,12 +81,13 @@ export const searchBookmarks = agentQuery({
     query: v.string(),
     folderId: v.optional(v.union(v.string(), v.null())),
     limit: v.optional(v.number()),
+    ...tagFilterArgs,
   },
-  handler: async (ctx, { query, folderId, limit }) => {
+  handler: async (ctx, { query, folderId, limit, ...tagFilter }) => {
     const library = await readLibrary(ctx);
     const scope = library.within(folderTarget(ctx, folderId));
     return rankBookmarks(
-      scope,
+      scope.filter(matchingTags(tagFilter)),
       query.slice(0, MAX_QUERY_LENGTH),
       clampLimit(limit)
     ).map(library.bookmark);
@@ -134,6 +142,25 @@ export const findBrokenLinks = agentQuery({
   },
 });
 
+export const listTags = agentQuery({
+  args: {},
+  handler: async (ctx) => {
+    const uses = Map.groupBy(
+      (await bookmarks.listBookmarks(ctx)).flatMap(tagsOf),
+      (tag) => tag
+    );
+    return {
+      tags: [...uses]
+        .map(([name, tagged]) => ({ name, bookmarkCount: tagged.length }))
+        .sort(
+          (first, second) =>
+            second.bookmarkCount - first.bookmarkCount ||
+            first.name.localeCompare(second.name)
+        ),
+    };
+  },
+});
+
 export const listChanges = agentQuery({
   args: { limit: v.optional(v.number()) },
   handler: changes.listChanges,
@@ -146,15 +173,17 @@ export const addBookmark = agentMutation({
     url: v.string(),
     title: v.optional(v.string()),
     note: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
     folderId: v.optional(v.string()),
   },
-  handler: async (ctx, { url, title, note, folderId }) => {
+  handler: async (ctx, { url, title, note, tags, folderId }) => {
     const bookmarkId = await bookmarks.addBookmark(
       ctx,
       {
         url,
         title,
         note,
+        tags,
         folderId: folderId ? folderIdFrom(ctx, folderId) : undefined,
       },
       "agent"
@@ -175,9 +204,10 @@ export const updateBookmark = agentMutation({
     title: v.optional(v.string()),
     url: v.optional(v.string()),
     note: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
     folderId: v.optional(v.union(v.string(), v.null())),
   },
-  handler: async (ctx, { bookmarkId, title, url, note, folderId }) => {
+  handler: async (ctx, { bookmarkId, title, url, note, tags, folderId }) => {
     const id = bookmarkIdFrom(ctx, bookmarkId);
     const before = await bookmarks.getOwnedBookmark(ctx, id);
     await bookmarks.updateBookmark(
@@ -187,6 +217,7 @@ export const updateBookmark = agentMutation({
         title,
         url,
         note,
+        tags,
         folderId: folderTarget(ctx, folderId),
       },
       "agent"
@@ -201,6 +232,7 @@ export const updateBookmark = agentMutation({
           url: before.url,
           title: before.title,
           note: before.note,
+          tags: before.tags,
           folderId: before.folderId,
           urlFromAgent: before.urlFromAgent,
         },
@@ -305,6 +337,7 @@ export const addBookmarks = agentMutation({
         url: v.string(),
         title: v.optional(v.string()),
         note: v.optional(v.string()),
+        tags: v.optional(v.array(v.string())),
       })
     ),
     folderId: v.optional(v.union(v.string(), v.null())),
@@ -321,9 +354,9 @@ export const addBookmarks = agentMutation({
       reason: string;
       existingId: string | null;
     }[] = [];
-    for (const { url, title, note } of args.bookmarks) {
+    for (const { url, ...fields } of args.bookmarks) {
       // biome-ignore lint/performance/noAwaitInLoops: a link listed twice in one call must count as already saved
-      const outcome = await addUnlessSaved(ctx, { url, title, note, folderId });
+      const outcome = await addUnlessSaved(ctx, { url, ...fields, folderId });
       if (outcome.kind === "added") {
         addedIds.push(outcome.bookmarkId);
       } else {
@@ -429,6 +462,53 @@ export const deleteBookmarks = agentMutation({
   },
 });
 
+export const tagBookmarks = agentMutation({
+  args: {
+    bookmarkIds: v.array(v.string()),
+    add: v.optional(v.array(v.string())),
+    remove: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    const ids = [...new Set(args.bookmarkIds)].map((id) =>
+      bookmarkIdFrom(ctx, id)
+    );
+    assertBulkSize(ids.length);
+    const adding = cleanTags(args.add ?? []);
+    const removing = new Set(cleanTags(args.remove ?? []));
+    if (adding.length + removing.size === 0) {
+      throw new ConvexError("Pass the tags to add, to remove, or both.");
+    }
+    const owned = await Promise.all(
+      ids.map((bookmarkId) => bookmarks.getOwnedBookmark(ctx, bookmarkId))
+    );
+    const retagged = owned
+      .map((bookmark) => ({
+        bookmark,
+        tags: storedTags([
+          ...tagsOf(bookmark).filter((tag) => !removing.has(tag)),
+          ...adding,
+        ]),
+      }))
+      .filter(({ bookmark, tags }) => !sameTags(tagsOf(bookmark), tags ?? []));
+    await Promise.all(
+      retagged.map(({ bookmark, tags }) => ctx.db.patch(bookmark._id, { tags }))
+    );
+    const changeId =
+      retagged.length > 0
+        ? await changes.recordChange(
+            ctx,
+            tagChangeSummary(adding, [...removing], retagged.length),
+            retagged.map(({ bookmark }) => ({
+              kind: "setTags",
+              bookmarkId: bookmark._id,
+              tags: bookmark.tags,
+            }))
+          )
+        : null;
+    return { changedCount: retagged.length, changeId };
+  },
+});
+
 export const undoChange = agentMutation({
   args: { changeId: v.string() },
   handler: (ctx, { changeId }) => {
@@ -486,11 +566,13 @@ async function addUnlessSaved(
     url,
     title,
     note,
+    tags,
     folderId,
   }: {
     url: string;
     title?: string;
     note?: string;
+    tags?: string[];
     folderId?: Id<"folders">;
   }
 ): Promise<
@@ -520,10 +602,50 @@ async function addUnlessSaved(
     kind: "added",
     bookmarkId: await bookmarks.addBookmark(
       ctx,
-      { url: normalized, title, note, folderId },
+      { url: normalized, title, note, tags, folderId },
       "agent"
     ),
   };
+}
+
+function matchingTags({
+  tags,
+  withoutTags,
+}: {
+  tags?: string[];
+  withoutTags?: string[];
+}) {
+  const required = (tags ?? []).flatMap(splitTags);
+  const excluded = new Set((withoutTags ?? []).flatMap(splitTags));
+  return (bookmark: Doc<"bookmarks">) => {
+    const own = tagsOf(bookmark);
+    return (
+      required.every((tag) => own.includes(tag)) &&
+      !own.some((tag) => excluded.has(tag))
+    );
+  };
+}
+
+function sameTags(first: string[], second: string[]) {
+  return (
+    first.length === second.length &&
+    first.every((tag, index) => tag === second[index])
+  );
+}
+
+function tagChangeSummary(added: string[], removed: string[], changed: number) {
+  const bookmarkCount = count(changed, "bookmark");
+  if (removed.length === 0) {
+    return `Tagged ${bookmarkCount} ${quoteTags(added)}`;
+  }
+  if (added.length === 0) {
+    return `Removed ${quoteTags(removed)} from ${bookmarkCount}`;
+  }
+  return `Tagged ${bookmarkCount} ${quoteTags(added)}, removed ${quoteTags(removed)}`;
+}
+
+function quoteTags(tags: string[]) {
+  return tags.map((tag) => `“${tag}”`).join(", ");
 }
 
 function inFolderPhrase(path: string | null | undefined) {

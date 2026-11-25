@@ -1,5 +1,6 @@
 import { ConvexError } from "convex/values";
 import { decodeEntities, escapeHtml, readAttributes } from "./html";
+import { splitTags } from "./tags";
 
 // The "Netscape bookmark file" every major browser exports and imports.
 // One module owns both directions so export → import round-trips by
@@ -11,6 +12,7 @@ export interface FileBookmark {
   kind: "bookmark";
   // The <DD> description browsers keep with a bookmark.
   note?: string;
+  tags?: string[];
   title: string;
   url: string;
 }
@@ -130,11 +132,13 @@ function readToken(
     return;
   }
   const attributes = readAttributes(groups.linkAttributes ?? "");
+  const tags = splitTags(attributes.tags ?? "");
   current.children.push({
     kind: "bookmark",
     title: textOf(groups.linkTitle ?? ""),
     url: (attributes.href ?? "").trim(),
     addedAt: parseAddDate(attributes.add_date),
+    ...(tags.length > 0 ? { tags } : {}),
   });
 }
 
@@ -177,8 +181,11 @@ function serializeNode(node: FileNode, depth: number): string[] {
       ? ""
       : ` ADD_DATE="${Math.floor(node.addedAt / MS_PER_SECOND)}"`;
   if (node.kind === "bookmark") {
+    const tags = node.tags?.length
+      ? ` TAGS="${escapeHtml(node.tags.join(","))}"`
+      : "";
     return [
-      `${indent}<DT><A HREF="${escapeHtml(node.url)}"${addDate}>${escapeHtml(node.title)}</A>`,
+      `${indent}<DT><A HREF="${escapeHtml(node.url)}"${addDate}${tags}>${escapeHtml(node.title)}</A>`,
       ...(node.note ? [`${indent}<DD>${escapeHtml(node.note)}`] : []),
     ];
   }

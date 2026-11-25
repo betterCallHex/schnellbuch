@@ -24,6 +24,7 @@ export const undoStep = v.union(
     savedAt: v.number(),
     faviconUrl: v.optional(v.string()),
     note: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
     urlFromAgent: v.optional(v.literal(true)),
   }),
   v.object({
@@ -37,8 +38,14 @@ export const undoStep = v.union(
     url: v.string(),
     title: v.string(),
     note: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
     folderId: v.optional(v.id("folders")),
     urlFromAgent: v.optional(v.literal(true)),
+  }),
+  v.object({
+    kind: v.literal("setTags"),
+    bookmarkId: v.id("bookmarks"),
+    tags: v.optional(v.array(v.string())),
   }),
   // Put a folder's name and parent back as they were.
   v.object({
@@ -78,6 +85,7 @@ export default defineSchema({
     faviconUrl: v.optional(v.string()),
     // The user's (or an agent's) own words about the page.
     note: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
     // When the user saved it, in ms since the epoch. Imports keep the
     // browser's original date. Optional only until `migrations:backfillSavedAt`
     // has run on every deployment; read it through `savedAtOf`.

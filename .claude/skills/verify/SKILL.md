@@ -38,6 +38,7 @@ Use a named agent-browser session. On `/sign-in`, enter Ada's or Bob's address a
 - Saving a link that's already saved (paste, ⌘K, the add dialog) toasts "Already saved in …" with Show; `/add` with such a link says "Already saved" and its folder picker moves the existing bookmark.
 - ⌘K: `dv cnvx` finds the folder "Dev / Convex"; ⌘↵ (Ctrl+Enter on Linux) on a bookmark opens its folder with it selected (`?select=`).
 - Edit… on a bookmark has a Note; the tile's tooltip, the list view, ⌘K and the MCP tools show it.
+- Tags: Edit… takes comma-separated tags; a tagged tile gets a tag badge in Icons and chips in List, and ⌘K finds bookmarks by tag. Over MCP, `tag_bookmarks` adds and removes tags in bulk (one undoable change), `list_bookmarks` and `search_bookmarks` take `tags` and `withoutTags`, and `list_tags` counts them.
 - ⋯ → Library health: "Check links" queues checks (results within seconds; in a sandbox without internet every link reads "Gone"), and Ada's `Reading` shows up under Duplicates.
 - Settings → Account: Delete account… emails a code (`bun run dev:verify code <email>` again), then deletes and signs out; signing in again with that address makes a new, empty account.
 - No `securitypolicyviolation` events in the console: every page sends a Content-Security-Policy.

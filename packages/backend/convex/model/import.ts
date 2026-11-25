@@ -4,6 +4,7 @@ import type { Id } from "../_generated/dataModel";
 import type { UserMutationCtx, UserQueryCtx } from "../functions";
 import type { BookmarkFileSource, FileNode } from "./netscape";
 import { fetchPool } from "./pool";
+import { MAX_TAG_LENGTH, MAX_TAGS, storedTags } from "./tags";
 import { normalizeUrl, placeholderTitle } from "./url";
 
 // Items per mutation: well inside Convex's per-transaction read, write and
@@ -28,6 +29,7 @@ export const importItem = v.union(
     title: v.string(),
     url: v.string(),
     note: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
     addedAt: v.optional(v.number()),
   })
 );
@@ -47,6 +49,7 @@ export function flattenForImport(nodes: FileNode[]) {
           title: node.title,
           url: node.url,
           note: node.note,
+          tags: node.tags,
           addedAt: node.addedAt,
         });
       } else {
@@ -212,6 +215,7 @@ async function importBookmark(
       url,
       title: title || placeholderTitle(url),
       note: item.note?.trim().slice(0, MAX_NOTE_LENGTH) || undefined,
+      tags: importedTags(item.tags ?? []),
       folderId,
       savedAt: item.addedAt ?? Date.now(),
     });
@@ -227,6 +231,12 @@ async function getOwnedImport(ctx: UserQueryCtx, importId: Id<"imports">) {
     throw new ConvexError("Import not found.");
   }
   return record;
+}
+
+function importedTags(tags: string[]) {
+  return storedTags(
+    tags.slice(0, MAX_TAGS).map((tag) => tag.slice(0, MAX_TAG_LENGTH))
+  );
 }
 
 function cleanText(text: string) {

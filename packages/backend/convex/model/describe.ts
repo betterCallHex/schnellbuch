@@ -1,6 +1,7 @@
 import { type Infer, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { savedAtOf } from "./bookmarks";
+import { tagsOf } from "./tags";
 import {
   buildFolderTree,
   type FolderNode,
@@ -15,6 +16,7 @@ export const bookmarkResult = v.object({
   folderId: v.union(v.string(), v.null()),
   folderPath: v.union(v.string(), v.null()),
   note: v.union(v.string(), v.null()),
+  tags: v.array(v.string()),
   savedAt: v.string(),
 });
 
@@ -51,6 +53,7 @@ export function describeFolders(folders: Doc<"folders">[]) {
         ? (nodeById.get(bookmark.folderId)?.path ?? null)
         : null,
       note: bookmark.note ?? null,
+      tags: tagsOf(bookmark),
       savedAt: new Date(savedAtOf(bookmark)).toISOString(),
     }),
   };

@@ -1,4 +1,5 @@
 import type { Id } from "@schnellbuch/backend/data-model";
+import { splitTags } from "@schnellbuch/backend/tags";
 import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 
@@ -119,10 +120,11 @@ function BookmarkForm({
     const url = String(form.get("url"));
     const title = String(form.get("title")).trim();
     const note = String(form.get("note")).trim();
+    const tags = splitTags(String(form.get("tags")));
     const folderId = folder === TOP_LEVEL ? null : (folder as Id<"folders">);
     if (bookmark) {
       onDone();
-      await edits.editBookmark(bookmark, { url, title, note, folderId });
+      await edits.editBookmark(bookmark, { url, title, note, tags, folderId });
       return;
     }
     if (
@@ -130,6 +132,7 @@ function BookmarkForm({
         url,
         title: title || undefined,
         note: note || undefined,
+        tags,
         folderId: folderId ?? undefined,
       })
     ) {
@@ -143,7 +146,7 @@ function BookmarkForm({
         <DialogTitle>{bookmark ? "Edit bookmark" : "Add bookmark"}</DialogTitle>
         <DialogDescription>
           {bookmark
-            ? "Change the link, its title or its folder."
+            ? "Change the link, its title, tags or folder."
             : "Leave the title empty to use the page's own title."}
         </DialogDescription>
       </DialogHeader>
@@ -176,6 +179,16 @@ function BookmarkForm({
           name="note"
           placeholder="Why you saved it, what to remember"
           rows={3}
+        />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="bookmark-tags">Tags</Label>
+        <Input
+          autoComplete="off"
+          defaultValue={bookmark?.tags?.join(", ")}
+          id="bookmark-tags"
+          name="tags"
+          placeholder="reviewed, to read"
         />
       </div>
       <div className="flex flex-col gap-2">

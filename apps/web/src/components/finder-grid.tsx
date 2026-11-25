@@ -6,7 +6,7 @@ import {
   useWindowVirtualizer,
 } from "@tanstack/react-virtual";
 import { cn } from "cn";
-import { CloudUploadIcon, TriangleAlertIcon } from "lucide-react";
+import { CloudUploadIcon, TagIcon, TriangleAlertIcon } from "lucide-react";
 import {
   type MouseEvent,
   type PointerEvent,
@@ -682,6 +682,7 @@ function BookmarkTile({
       note={bookmark.note}
       refs={ref}
       subtitle={displayHost(bookmark.url)}
+      tags={bookmark.tags}
     />
   );
 }
@@ -699,6 +700,7 @@ function Tile({
   badge,
   name,
   note,
+  tags = [],
   subtitle,
   date,
   menu,
@@ -717,6 +719,7 @@ function Tile({
   note?: string;
   refs: (element: Element | null) => void;
   subtitle: string;
+  tags?: string[];
 }) {
   const marks = (
     <>
@@ -724,6 +727,9 @@ function Tile({
       {badge}
     </>
   );
+  const tooltip = [name, note, tags.length > 0 && `Tags: ${tags.join(", ")}`]
+    .filter(Boolean)
+    .join("\n\n");
   return (
     <ContextMenu onOpenChange={(open) => open && onContextMenu()}>
       <ContextMenuTrigger
@@ -746,7 +752,7 @@ function Tile({
             ref={refs}
             role="option"
             tabIndex={focusable ? 0 : -1}
-            title={note ? `${name}\n\n${note}` : name}
+            title={tooltip}
           />
         }
       >
@@ -756,6 +762,7 @@ function Tile({
               {glyph}
               <span className="absolute bottom-0.5 left-1/2 flex translate-x-5 gap-0.5">
                 {marks}
+                {tags.length > 0 ? <TagBadge tags={tags} /> : null}
               </span>
             </span>
             <span className="group-aria-selected:bg-selection line-clamp-2 max-w-full rounded-md px-1.5 py-0.5 text-center text-[0.8125rem] leading-snug break-words group-aria-selected:text-white">
@@ -776,6 +783,7 @@ function Tile({
                 </span>
               ) : null}
             </span>
+            <TagChips tags={tags} />
             {marks}
             <span className="text-meta hidden w-40 shrink-0 truncate text-xs group-aria-selected:text-white/80 sm:block">
               {subtitle}
@@ -788,6 +796,45 @@ function Tile({
       </ContextMenuTrigger>
       {menu}
     </ContextMenu>
+  );
+}
+
+function TagBadge({ tags }: { tags: string[] }) {
+  const label = `Tagged ${tags.join(", ")}`;
+  return (
+    <span
+      className="bg-background text-muted-foreground flex size-5 items-center justify-center rounded-full border shadow-sm"
+      title={label}
+    >
+      <TagIcon aria-hidden className="size-3" />
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
+const VISIBLE_TAG_CHIPS = 3;
+
+function TagChips({ tags }: { tags: string[] }) {
+  if (tags.length === 0) {
+    return null;
+  }
+  const hidden = tags.length - VISIBLE_TAG_CHIPS;
+  return (
+    <span className="hidden max-w-64 shrink-0 gap-1 overflow-hidden sm:flex">
+      {tags.slice(0, VISIBLE_TAG_CHIPS).map((tag) => (
+        <span
+          className="bg-muted text-muted-foreground truncate rounded-full px-2 py-0.5 text-[0.6875rem] group-aria-selected:bg-white/20 group-aria-selected:text-white"
+          key={tag}
+        >
+          {tag}
+        </span>
+      ))}
+      {hidden > 0 ? (
+        <span className="text-meta py-0.5 text-[0.6875rem] group-aria-selected:text-white/80">
+          +{hidden}
+        </span>
+      ) : null}
+    </span>
   );
 }
 
