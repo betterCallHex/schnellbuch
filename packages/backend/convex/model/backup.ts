@@ -40,6 +40,7 @@ export function libraryAsFileNodes(
         title: bookmark.title,
         url: bookmark.url,
         note: bookmark.note,
+        tags: bookmark.tags,
         addedAt: savedAtOf(bookmark),
       })
     ),

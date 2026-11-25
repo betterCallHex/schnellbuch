@@ -3,12 +3,14 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { UserMutationCtx, UserQueryCtx } from "../functions";
 import { getOwnedFolder } from "./folders";
+import { storedTags } from "./tags";
 import { normalizeUrl, placeholderTitle } from "./url";
 
 export const addBookmarkArgs = {
   url: v.string(),
   title: v.optional(v.string()),
   note: v.optional(v.string()),
+  tags: v.optional(v.array(v.string())),
   folderId: v.optional(v.id("folders")),
   // Restoring a deleted bookmark keeps its original date.
   savedAt: v.optional(v.number()),
@@ -20,6 +22,7 @@ export const updateBookmarkArgs = {
   title: v.optional(v.string()),
   // An empty note removes it.
   note: v.optional(v.string()),
+  tags: v.optional(v.array(v.string())),
   folderId: v.optional(v.union(v.id("folders"), v.null())),
 };
 
@@ -64,12 +67,14 @@ export async function addBookmark(
     url,
     title,
     note,
+    tags,
     folderId,
     savedAt,
   }: {
     url: string;
     title?: string;
     note?: string;
+    tags?: string[];
     folderId?: Id<"folders">;
     savedAt?: number;
   },
@@ -85,6 +90,7 @@ export async function addBookmark(
     url: normalizedUrl,
     title: trimmedTitle || placeholderTitle(normalizedUrl),
     note: note === undefined ? undefined : cleanNote(note),
+    tags: tags === undefined ? undefined : storedTags(tags),
     folderId,
     savedAt: savedAt ?? Date.now(),
     ...(urlSource === "agent" ? { urlFromAgent: true } : {}),
@@ -104,12 +110,14 @@ export async function updateBookmark(
     url,
     title,
     note,
+    tags,
     folderId,
   }: {
     bookmarkId: Id<"bookmarks">;
     url?: string;
     title?: string;
     note?: string;
+    tags?: string[];
     folderId?: Id<"folders"> | null;
   },
   urlSource: UrlSource = "user"
@@ -127,6 +135,7 @@ export async function updateBookmark(
         }),
     ...(title === undefined ? {} : { title: cleanTitle(title) }),
     ...(note === undefined ? {} : { note: cleanNote(note) }),
+    ...(tags === undefined ? {} : { tags: storedTags(tags) }),
     ...(folderId === undefined ? {} : { folderId: folderId ?? undefined }),
   });
 }

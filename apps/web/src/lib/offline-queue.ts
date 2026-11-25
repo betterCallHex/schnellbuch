@@ -1,5 +1,6 @@
 import { api } from "@schnellbuch/backend/api";
 import type { Doc, Id } from "@schnellbuch/backend/data-model";
+import { cleanTags, storedTags } from "@schnellbuch/backend/tags";
 import {
   folderAndDescendants,
   isWithinFolder,
@@ -161,6 +162,7 @@ export function patchBookmark(
     ...(change.note === undefined
       ? {}
       : { note: change.note.trim() || undefined }),
+    ...(change.tags === undefined ? {} : { tags: storedTags(change.tags) }),
     ...(change.url === undefined ? {} : { url: normalizeUrl(change.url) }),
     ...(change.folderId === undefined
       ? {}
@@ -189,7 +191,9 @@ function problemWith(library: LibraryData, edit: QueuedEdit) {
   switch (edit.kind) {
     case "addBookmark":
       return (
-        urlProblem(edit.args.url) ?? folderProblem(library, edit.args.folderId)
+        urlProblem(edit.args.url) ??
+        tagsProblem(edit.args.tags) ??
+        folderProblem(library, edit.args.folderId)
       );
     case "duplicateBookmark":
       return (
@@ -222,6 +226,7 @@ function bookmarkUpdateProblem(
   return (
     bookmarkProblem(library, change.bookmarkId) ??
     (change.url === undefined ? undefined : urlProblem(change.url)) ??
+    tagsProblem(change.tags) ??
     folderProblem(library, change.folderId ?? undefined)
   );
 }
@@ -270,6 +275,16 @@ function urlProblem(url: string): string | undefined {
     return error instanceof ConvexError
       ? String(error.data)
       : `"${url}" is not a web link.`;
+  }
+}
+
+function tagsProblem(tags: string[] | undefined): string | undefined {
+  try {
+    cleanTags(tags ?? []);
+  } catch (error) {
+    return error instanceof ConvexError
+      ? String(error.data)
+      : "Those tags aren't valid.";
   }
 }
 
@@ -351,6 +366,7 @@ function addedBookmark(edit: EditOf<"addBookmark">, userId: string): Bookmark {
     url,
     title: edit.args.title?.trim() || placeholderTitle(url),
     note: edit.args.note?.trim() || undefined,
+    tags: storedTags(edit.args.tags ?? []),
     folderId: edit.args.folderId,
     savedAt: edit.args.savedAt ?? edit.at,
   };

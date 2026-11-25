@@ -7,11 +7,17 @@ const abbreviationMatcher = new uFuzzy({ intraIns: Number.POSITIVE_INFINITY });
 const typoMatcher = new uFuzzy({ intraMode: 1 });
 
 export function searchBookmarks<
-  Bookmark extends { title: string; url: string; note?: string },
+  Bookmark extends {
+    title: string;
+    url: string;
+    note?: string;
+    tags?: string[];
+  },
 >(bookmarks: Bookmark[], query: string, limit: number) {
   return rankByText(
     bookmarks,
-    (bookmark) => `${bookmark.title} ${bookmark.url} ${bookmark.note ?? ""}`,
+    (bookmark) =>
+      `${bookmark.title} ${bookmark.url} ${bookmark.note ?? ""} ${bookmark.tags?.join(" ") ?? ""}`,
     query,
     limit
   );

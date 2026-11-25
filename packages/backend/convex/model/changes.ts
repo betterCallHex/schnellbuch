@@ -29,6 +29,7 @@ export function restoreBookmarkStep(bookmark: Doc<"bookmarks">): UndoStep {
     savedAt: savedAtOf(bookmark),
     faviconUrl: bookmark.faviconUrl,
     note: bookmark.note,
+    tags: bookmark.tags,
     urlFromAgent: bookmark.urlFromAgent,
   };
 }
@@ -100,9 +101,13 @@ class Undo {
           url: step.url,
           title: step.title,
           note: step.note,
+          tags: step.tags,
           folderId: this.folderOrTop(step.folderId),
           urlFromAgent: step.urlFromAgent,
         });
+        return;
+      case "setTags":
+        await this.patchBookmark(step.bookmarkId, { tags: step.tags });
         return;
       case "restoreBookmark":
         await this.ctx.db.insert("bookmarks", {
@@ -113,6 +118,7 @@ class Undo {
           savedAt: step.savedAt,
           faviconUrl: step.faviconUrl,
           note: step.note,
+          tags: step.tags,
           urlFromAgent: step.urlFromAgent,
         });
         return;

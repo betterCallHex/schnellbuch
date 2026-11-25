@@ -35,6 +35,7 @@ interface FolderStyle {
 interface BookmarkFields {
   folderId: FolderId | null;
   note: string;
+  tags: string[];
   title: string;
   url: string;
 }
@@ -103,6 +104,7 @@ export function useLibraryEdits() {
       url: string;
       title?: string;
       note?: string;
+      tags?: string[];
       folderId?: FolderId;
     }) {
       const existing = findSaved(bookmarks, fields.url);
@@ -252,6 +254,7 @@ function editSteps({
       url: fields.url,
       title: fields.title,
       note: fields.note,
+      tags: fields.tags,
       folderId: liveFolder(fields.folderId),
     });
   const moveBookmarkTo =
@@ -282,6 +285,7 @@ function editSteps({
       url: string;
       title?: string;
       note?: string;
+      tags?: string[];
       folderId?: FolderId;
     }): Step {
       const created = recreatable(() =>
@@ -299,6 +303,7 @@ function editSteps({
           url: bookmark.url,
           title: bookmark.title,
           note: bookmark.note ?? "",
+          tags: bookmark.tags ?? [],
           folderId: bookmark.folderId ?? null,
         }),
       };
@@ -323,6 +328,7 @@ function editSteps({
             url: bookmark.url,
             title: bookmark.title,
             note: bookmark.note,
+            tags: bookmark.tags,
             folderId: liveOptional(bookmark.folderId),
             savedAt: bookmark.savedAt ?? bookmark._creationTime,
           }),

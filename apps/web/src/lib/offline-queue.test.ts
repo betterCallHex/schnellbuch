@@ -126,9 +126,46 @@ describe("applyEdits", () => {
     );
     expect([...view.pendingIds]).toEqual([readingId]);
   });
+
+  it("shows tags edited offline the way the server will store them", () => {
+    const view = applyEdits(
+      library,
+      [
+        {
+          kind: "updateBookmark",
+          at: AT,
+          args: {
+            bookmarkId: "docs" as Id<"bookmarks">,
+            tags: ["Reviewed", "to read, reviewed"],
+          },
+        },
+        {
+          kind: "updateBookmark",
+          at: AT,
+          args: { bookmarkId: "blog" as Id<"bookmarks">, tags: [] },
+        },
+      ],
+      USER
+    );
+    expect(view.bookmarks.map((saved) => saved.tags)).toEqual([
+      ["reviewed", "to read"],
+      undefined,
+    ]);
+  });
 });
 
 describe("checkEdits", () => {
+  it("refuses tags the server would refuse", () => {
+    const tooLong: QueuedEdit = {
+      kind: "updateBookmark",
+      at: AT,
+      args: { bookmarkId: "docs" as Id<"bookmarks">, tags: ["x".repeat(41)] },
+    };
+    expect(() => checkEdits(library, [tooLong], USER)).toThrow(
+      "A tag can be at most 40 characters."
+    );
+  });
+
   it("refuses what the server would refuse, with the server's words", () => {
     const intoItself: QueuedEdit = {
       kind: "updateFolder",
