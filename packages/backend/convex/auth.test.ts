@@ -78,8 +78,8 @@ describe("sign-up allow-list", () => {
 });
 
 describe("sign-in codes by email", () => {
-  it("are sent through Mailtrap and sign the address in once", async () => {
-    const { t, sent } = withMailtrap();
+  it("are sent through Brevo and sign the address in once", async () => {
+    const { t, sent } = withBrevo();
 
     expect((await requestCode(t, "Owner@Example.com")).status).toBe(200);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
@@ -87,10 +87,10 @@ describe("sign-in codes by email", () => {
 
     expect(sent).toEqual([
       expect.objectContaining({
-        url: "https://send.api.mailtrap.io/api/send",
-        authorization: "Bearer mailtrap-token",
+        url: "https://api.brevo.com/v3/smtp/email",
+        apiKey: "brevo-key",
         body: expect.objectContaining({
-          from: { email: "login@schnellbuch.test", name: "SchnellBuch" },
+          sender: { email: "login@schnellbuch.test", name: "SchnellBuch" },
           to: [{ email: "owner@example.com" }],
         }),
       }),
@@ -100,7 +100,7 @@ describe("sign-in codes by email", () => {
   });
 
   it("a wrong code doesn't sign in", async () => {
-    const { t, sent } = withMailtrap();
+    const { t, sent } = withBrevo();
     await requestCode(t, "owner@example.com");
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const wrong = codeFrom(sent) === "000000" ? "111111" : "000000";
@@ -111,7 +111,7 @@ describe("sign-in codes by email", () => {
   });
 
   it("aren't sent to an address that can't have an account", async () => {
-    const { t, sent } = withMailtrap();
+    const { t, sent } = withBrevo();
 
     const response = await requestCode(t, "stranger@example.com");
     await t.finishAllScheduledFunctions(vi.runAllTimers);
@@ -120,7 +120,7 @@ describe("sign-in codes by email", () => {
     expect(sent).toEqual([]);
   });
 
-  it("are logged instead of sent when Mailtrap isn't set up", async () => {
+  it("are logged instead of sent when Brevo isn't set up", async () => {
     vi.useFakeTimers();
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
@@ -156,24 +156,26 @@ describe("sign-in codes by email", () => {
 });
 
 interface SentEmail {
-  authorization: string | null;
-  body: { subject: string; to: { email: string }[] };
+  apiKey: string | null;
+  body: { subject: string; textContent: string; to: { email: string }[] };
   url: string;
 }
 
-function withMailtrap() {
+function withBrevo() {
   vi.useFakeTimers();
-  vi.stubEnv("MAILTRAP_API_TOKEN", "mailtrap-token");
+  vi.stubEnv("BREVO_API_KEY", "brevo-key");
   vi.stubEnv("EMAIL_FROM", "login@schnellbuch.test");
   vi.resetModules();
   const sent: SentEmail[] = [];
   vi.stubGlobal("fetch", (url: string, init: RequestInit) => {
     sent.push({
       url,
-      authorization: new Headers(init.headers).get("authorization"),
+      apiKey: new Headers(init.headers).get("api-key"),
       body: JSON.parse(String(init.body)),
     });
-    return Promise.resolve(Response.json({ success: true }));
+    return Promise.resolve(
+      Response.json({ messageId: "<id>" }, { status: 201 })
+    );
   });
   return { t: createTest(), sent };
 }

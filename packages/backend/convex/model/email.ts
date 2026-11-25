@@ -1,4 +1,4 @@
-const MAILTRAP_SEND_URL = "https://send.api.mailtrap.io/api/send";
+const BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email";
 
 export interface Email {
   subject: string;
@@ -14,27 +14,27 @@ export function signInCodeEmail(to: string, code: string): Email {
   };
 }
 
-export async function sendWithMailtrap(
+export async function sendWithBrevo(
   email: Email,
-  { token, from }: { token: string; from: string }
+  { apiKey, from }: { apiKey: string; from: string }
 ) {
-  const response = await fetch(MAILTRAP_SEND_URL, {
+  const response = await fetch(BREVO_SEND_URL, {
     method: "POST",
     headers: {
-      authorization: `Bearer ${token}`,
+      "api-key": apiKey,
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      from: { email: from, name: "SchnellBuch" },
+      sender: { email: from, name: "SchnellBuch" },
       to: [{ email: email.to }],
       subject: email.subject,
-      text: email.text,
-      category: "Sign-in code",
+      textContent: email.text,
+      tags: ["Sign-in code"],
     }),
   });
   if (!response.ok) {
     throw new Error(
-      `Mailtrap refused the email: ${response.status} ${await response.text()}`
+      `Brevo refused the email: ${response.status} ${await response.text()}`
     );
   }
 }
