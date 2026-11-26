@@ -8,8 +8,6 @@ export const CODE_LENGTH = 6;
 
 export function signInCodeError(error: AuthError) {
   switch (error.code) {
-    case "SIGNUPS_CLOSED":
-      return "Sign-ups are closed.";
     case "INVALID_OTP":
       return "That code isn't right. Check the email and try again.";
     case "OTP_EXPIRED":

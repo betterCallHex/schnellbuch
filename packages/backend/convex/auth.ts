@@ -9,7 +9,6 @@ import { query } from "./_generated/server";
 import authConfig from "./auth.config";
 import { env } from "./env";
 import { tryAgainIn, waitBefore } from "./model/limits";
-import { isSignupAllowed, SIGNUPS_CLOSED } from "./model/signup";
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
@@ -44,15 +43,8 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
       emailOTP({
         expiresIn: CODE_LIFETIME_SECONDS,
         storeOTP: "hashed",
-        sendVerificationOTP: async ({ email, otp }, request) => {
-          const known =
-            await request?.context.internalAdapter.findUserByEmail(email);
-          if (
-            !(
-              (known || isSignupAllowed(email, env.SIGNUP_ALLOWED_EMAILS)) &&
-              "scheduler" in ctx
-            )
-          ) {
+        sendVerificationOTP: async ({ email, otp }) => {
+          if (!("scheduler" in ctx)) {
             return;
           }
           await ctx.scheduler.runAfter(0, internal.email.sendSignInCode, {
@@ -81,20 +73,6 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
           });
         }
       }),
-    },
-    databaseHooks: {
-      user: {
-        create: {
-          // Every route that creates a user passes through here, not only
-          // the email form.
-          before: (user) => {
-            if (!isSignupAllowed(user.email, env.SIGNUP_ALLOWED_EMAILS)) {
-              throw new APIError("FORBIDDEN", SIGNUPS_CLOSED);
-            }
-            return Promise.resolve();
-          },
-        },
-      },
     },
   });
 }

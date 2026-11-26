@@ -28,7 +28,7 @@ bun install
 bun run dev
 ```
 
-The first run creates `.env.local` at the repo root from `.env.example`, generates `BETTER_AUTH_SECRET`, and asks you to log in to Convex and create a project; Convex writes the deployment and its URLs into the same file. Put your address in `SIGNUP_ALLOWED_EMAILS` there, run `bun run dev` again, then open http://localhost:3000 and sign in with your email. Until Brevo is set up (below), the sign-in code is written to the Convex logs (`bunx convex logs`) instead of emailed.
+The first run creates `.env.local` at the repo root from `.env.example`, generates `BETTER_AUTH_SECRET`, and asks you to log in to Convex and create a project; Convex writes the deployment and its URLs into the same file. Run `bun run dev` again, then open http://localhost:3000 and sign in with your email. Until Brevo is set up (below), the sign-in code is written to the Convex logs (`bunx convex logs`) instead of emailed.
 
 ### Environment variables
 
@@ -36,15 +36,11 @@ There is one env file: `.env.local` at the repo root. Every app and package read
 
 - The web app and the extension load it through Vite's `envDir`.
 - The Convex CLI runs from the repo root (`convex.json` points it at `packages/backend/convex`), so `bunx convex …` from the root reaches your dev deployment.
-- Convex functions can't read local files, so `bun run dev` pushes the backend settings (`BETTER_AUTH_SECRET`, `SITE_URL`, `MCP_CONSENT_URL`, `SIGNUP_ALLOWED_EMAILS`, `BREVO_API_KEY`, `EMAIL_FROM`) from `.env.local` to your **dev** deployment before each start. Edit them in the file, never with `convex env set`. Production settings stay on the production deployment (see Deploy).
-
-### Who can sign up
-
-Only addresses in `SIGNUP_ALLOWED_EMAILS` can create an account. It's a comma-separated list of addresses (`me@example.com`) or whole domains (`@family.example`), compared case-insensitively. Anyone else gets no sign-in code. An empty or missing list closes sign-ups entirely, and accounts that already exist keep signing in whatever the list says.
+- Convex functions can't read local files, so `bun run dev` pushes the backend settings (`BETTER_AUTH_SECRET`, `SITE_URL`, `MCP_CONSENT_URL`, `BREVO_API_KEY`, `EMAIL_FROM`) from `.env.local` to your **dev** deployment before each start. Edit them in the file, never with `convex env set`. Production settings stay on the production deployment (see Deploy).
 
 ### Sign-in codes by email (Brevo)
 
-There are no passwords. Signing in sends a 6-digit code to the address. It works once, for 5 minutes, and three wrong guesses use it up. Each address can ask for a code or try one ten times every 15 minutes. Codes go only to existing accounts and to addresses that `SIGNUP_ALLOWED_EMAILS` lets in, so nobody can spend your email quota on strangers. The first time an account from the password days signs in with a code, its old password and sessions are removed; its library stays.
+There are no passwords and no separate sign-up. Anyone enters their email, gets a 6-digit code and is in; the first code for a new address creates its account. A code works once, for 5 minutes, and three wrong guesses use it up. Each address can ask for a code or try one ten times every 15 minutes. The first time an account from the password days signs in with a code, its old password and sessions are removed; its library stays.
 
 Email goes out through [Brevo](https://www.brevo.com)'s transactional email API. The free plan covers 300 emails a day, and it needs no domain of your own:
 
@@ -69,7 +65,6 @@ One-time setup:
    bunx convex env set --prod BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
    bunx convex env set --prod SITE_URL https://bookmarks.example.com
    bunx convex env set --prod MCP_CONSENT_URL https://bookmarks.example.com/connect
-   bunx convex env set --prod SIGNUP_ALLOWED_EMAILS you@example.com
    bunx convex env set --prod BREVO_API_KEY <key>
    bunx convex env set --prod EMAIL_FROM login@bookmarks.example.com
    ```
