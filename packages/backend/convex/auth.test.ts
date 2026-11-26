@@ -14,61 +14,21 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe("sign-up allow-list", () => {
-  it("an allowed address can create an account", async () => {
-    const t = createTest();
-
-    const response = await signIn(t, "owner@example.com");
-
-    expect(response.status).toBe(200);
-  });
-
-  it("a different case of an allowed address matches", async () => {
-    const t = createTest();
-
-    const response = await signIn(t, "OWNER@example.COM");
-
-    expect(response.status).toBe(200);
-  });
-
-  it("anyone at an allowed domain can create an account", async () => {
-    const t = createTest();
-
-    const response = await signIn(t, "kid@Family.test");
-
-    expect(response.status).toBe(200);
-  });
-
-  it("an address not on the list is refused with a stable code", async () => {
+describe("sign-up", () => {
+  it("any address creates an account with its first code", async () => {
     const t = createTest();
 
     const response = await signIn(t, "stranger@example.com");
 
-    expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({
-      code: "SIGNUPS_CLOSED",
-      message: "Sign-ups are closed.",
-    });
+    expect(response.status).toBe(200);
   });
 
-  it("an empty list closes sign-ups", async () => {
-    vi.stubEnv("SIGNUP_ALLOWED_EMAILS", "");
-    vi.resetModules();
-    const t = createTest();
-
-    const response = await signIn(t, "owner@example.com");
-
-    expect(response.status).toBe(403);
-  });
-
-  it("an existing user still signs in after the list is emptied", async () => {
+  it("the same address in another case signs in to the same account", async () => {
     const t = createTest();
     const first = await signIn(t, "owner@example.com");
     const { user } = (await first.json()) as { user: { id: string } };
 
-    vi.stubEnv("SIGNUP_ALLOWED_EMAILS", "");
-    vi.resetModules();
-    const response = await signIn(t, "owner@example.com");
+    const response = await signIn(t, "OWNER@example.COM");
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
@@ -110,14 +70,21 @@ describe("sign-in codes by email", () => {
     expect(response.status).toBe(400);
   });
 
-  it("aren't sent to an address that can't have an account", async () => {
+  it("go to a new address too, which signs up with it", async () => {
     const { t, sent } = withBrevo();
 
-    const response = await requestCode(t, "stranger@example.com");
+    expect((await requestCode(t, "stranger@example.com")).status).toBe(200);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
+    expect(sent.map((email) => email.body.to)).toEqual([
+      [{ email: "stranger@example.com" }],
+    ]);
+    const response = await signInWith(
+      t,
+      "stranger@example.com",
+      codeFrom(sent)
+    );
     expect(response.status).toBe(200);
-    expect(sent).toEqual([]);
   });
 
   it("are logged instead of sent when Brevo isn't set up", async () => {

@@ -267,7 +267,6 @@ export function configureBackend(state: StackState) {
     BETTER_AUTH_SECRET: state.authSecret,
     SITE_URL: web,
     MCP_CONSENT_URL: `${web}/connect`,
-    SIGNUP_ALLOWED_EMAILS: "@schnellbuch.test",
   };
   for (const [name, value] of Object.entries(settings)) {
     convexCli(state, ["env", "set", name, value]);

@@ -10,7 +10,7 @@ description: Start SchnellBuch locally and check a change end to end in a browse
 1. `bun install` in a fresh worktree.
 2. `bun run dev:verify`. It starts this worktree's own stack and returns once everything answers (about a minute the first time, seconds after):
    - a Convex local backend on ports derived from the worktree path (20000-29999), so parallel worktrees never collide;
-   - the Convex functions pushed to it, with `SIGNUP_ALLOWED_EMAILS=@schnellbuch.test` and the other backend settings;
+   - the Convex functions pushed to it, with the backend settings;
    - the web app;
    - two seeded accounts, `ada@schnellbuch.test` and `bob@schnellbuch.test`, each with nested folders and bookmarks, signed up through the app's own `/api/auth` routes.
 3. It prints the app URL, each account's user ID and MCP API key. The same values are in `~/.cache/schnellbuch/dev-verify/<stack>/env.sh` (outside the repo): `source` it for `$SCHNELLBUCH_WEB_URL`, `$SCHNELLBUCH_MCP_URL`, `$ADA_MCP_KEY`, `$BOB_EMAIL` and so on. After sourcing it, `bunx convex data|run|logs` from the repo root reach this stack instead of the cloud dev deployment.
@@ -20,7 +20,7 @@ The first run downloads the Convex local backend from GitHub (`version.convex.de
 
 ## Log in
 
-Use a named agent-browser session. On `/sign-in`, enter Ada's or Bob's address and press "Email me a code"; the stack sends no email, so run `bun run dev:verify code <email>` and type the code it prints (it replaces the one the page asked for). Ada has `Dev / Convex`, `Dev / Tools`, `Reading` (with one page saved twice under different URLs) and two top-level bookmarks; Bob has `Recipes` and `Travel / Japan`. Use Bob to prove Ada's data never shows up. To test sign-up, any `@schnellbuch.test` address works the same way; others get no code, and a code issued for them anyway answers "Sign-ups are closed".
+Use a named agent-browser session. On `/sign-in`, enter Ada's or Bob's address and press "Email me a code"; the stack sends no email, so run `bun run dev:verify code <email>` and type the code it prints (it replaces the one the page asked for). Ada has `Dev / Convex`, `Dev / Tools`, `Reading` (with one page saved twice under different URLs) and two top-level bookmarks; Bob has `Recipes` and `Travel / Japan`. Use Bob to prove Ada's data never shows up. To test sign-up, any new address works the same way: its first code creates the account.
 
 ## What to check
 

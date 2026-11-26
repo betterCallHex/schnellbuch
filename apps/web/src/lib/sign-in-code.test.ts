@@ -28,10 +28,7 @@ describe("signInCodeError", () => {
     ).toBe("Too many attempts. Try again in 12 minutes.");
   });
 
-  it("says sign-ups are closed, and passes other messages through", () => {
-    expect(signInCodeError({ code: "SIGNUPS_CLOSED" })).toBe(
-      "Sign-ups are closed."
-    );
+  it("passes other messages through", () => {
     expect(signInCodeError({ message: "Network down" })).toBe("Network down");
     expect(signInCodeError({})).toBe("Something went wrong. Try again.");
   });
